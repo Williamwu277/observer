@@ -4,7 +4,11 @@ from const import SERVICE_ACCOUNT_FILE, RANGE_NAME, SPREADSHEET_COLUMN_MAP
 from dotenv import load_dotenv
 from typing import List, Dict
 from utils import ScrapeResult
+import logging
 import os
+
+
+logger = logging.getLogger(__name__)
 
 
 load_dotenv()
@@ -16,11 +20,13 @@ def set_up_sheet() -> Resource:
     """
     Grab the spreadsheet object from the Google Sheets API
     """
+    logger.info("Setting up Google API connection ...")
     credentials = service_account.Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES
     )
     service = build('sheets', 'v4', credentials=credentials)
     sheet = service.spreadsheets()
+    logger.info("Google API connection set up!")
     return sheet
 
 
@@ -95,5 +101,7 @@ def update_results(scraper_names: List[str], results: Dict[str, ScrapeResult]) -
         ] 
         for url in results
     ]
+    logger.info(f"Found a total of {len(results_to_update)} new jobs to update!")
     insert_rows_at_top(sheet, len(results_to_update))
     update_spreadsheet(sheet, results_to_update + data)
+    logger.info("Spreadsheet updated!")

@@ -1,0 +1,4 @@
+playwright
+playwright-stealth
+google-api-python-client
+python-dotenv

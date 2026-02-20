@@ -8,7 +8,7 @@ from typing import List, Dict
 from playwright.sync_api import Playwright, sync_playwright
 from playwright_stealth import Stealth
 from const import USER_AGENTS
-from utils import get_company_directory, ScrapeResult
+from utils import ScrapeResult, get_company_directory, trim_logs
 from sheet_manager import update_results
 
 
@@ -73,3 +73,4 @@ if __name__ == "__main__":
         else:
             scraped_results = run_scrapers(playwright, argv[1:])
             update_results(argv[1:], scraped_results)
+    trim_logs()

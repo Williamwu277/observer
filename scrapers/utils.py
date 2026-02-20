@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from typing import List
 from const import TITLE_WHITELIST
 from pathlib import Path
@@ -45,3 +46,14 @@ def filter_location(location_list: List[str], location: str) -> bool:
     for word in location_list:
         if word in location: return True
     return False
+
+
+def trim_logs() -> None:
+    """
+    Trim log files to last 7 days
+    """
+    for path in Path("logs").iterdir():
+        log_date = datetime.strptime(path.stem, "scrape_%Y-%m-%d_%H-%M-%S").date()
+        if log_date < datetime.now().date() - timedelta(days=7):
+            path.unlink()
+    
