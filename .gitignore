@@ -1,5 +1,4 @@
 __pycache__/
-logs/
 credentials.json
 .cursorignore
 .env
