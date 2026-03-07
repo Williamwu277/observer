@@ -2,6 +2,12 @@ name: Build and Publish Docker Image
 
 on:
   workflow_dispatch:
+    inputs:
+      tag_latest:
+        description: 'Tag the image as latest'
+        required: false
+        type: boolean
+        default: true
 
 env:
   IMAGE_NAME: ghcr.io/williamwu277/observer
@@ -30,5 +36,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ inputs.tag_latest == true && format('{0}:latest', env.IMAGE_NAME) || '' }}
