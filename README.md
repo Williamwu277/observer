@@ -17,6 +17,7 @@ You can see the spreadsheet of internships [here](https://docs.google.com/spread
 2. Create a spreadsheet, share it with your service account, and then create an `.env` file with `SPREADSHEET_ID`
 3. Edit the spreadsheet with a table to look like the sample (or edit the constants)
 4. Create a virtual python environment and pip install the `requirements.txt`
+5. Run `playwright install` in the virtual environment
 
 ## Operation
 
@@ -25,7 +26,7 @@ You can see the spreadsheet of internships [here](https://docs.google.com/spread
 
 Details of each run will be stored within `/logs` in case you need to debug
 
-## Contribution
+## Outline
 
 The idea behind the scraper is that each company has a config and a strategy. The strategy is the function which performs the scraping, while the config stores the unique selectors and variables for each site (so that strategies are reusable). In this case, the default strategy would be `simple_scrape.py`. For each company, the strategy is called with the `page` from Playwright and the config variable as the parameters
 
