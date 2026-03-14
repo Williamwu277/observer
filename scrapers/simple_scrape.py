@@ -55,7 +55,7 @@ def simple_scrape(config: SimpleScrapeConfig, page: Page) -> List[Tuple[str, str
     # Filter the jobs
     for job in jobs_list:
         url = config.link_augmentation + job.locator(config.url_selector).first.get_attribute("href")
-        title = job.locator(config.title_selector).first.text_content()
+        title = job.locator(config.title_selector).first.text_content().strip()
 
         # Check location if necessary
         if config.location_selector:
