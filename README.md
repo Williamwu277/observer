@@ -4,6 +4,8 @@ Internship scraping rig
 
 You can see the spreadsheet of internships [here](https://docs.google.com/spreadsheets/d/1uaIL-RzYQ-UVAvO1WBw-80VvS5ZJsFJDfAyMEDXLtJ4/edit?gid=0#gid=0&fvid=1229650299)
 
+To view the table in sorted order, first make sure you are on a laptop. Then, click on the icon that looks like a calculator above the date scraped column. Finally, click on default order.
+
 ## Table of Contents
 - [Setup](#setup)
 - [Operation](#operation)
