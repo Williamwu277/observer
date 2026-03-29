@@ -27,12 +27,13 @@ def get_company_directory() -> List[str]:
     return company_names
 
 
-def filter_title(title: str) -> bool:
+def filter_title(title: str, strict: bool) -> bool:
     """
     Filter out irrelevant job titles
     """
     title = title.lower()
     if title.count("intern") <= title.count("interna"): return False
+    if not strict: return True
     for word in TITLE_WHITELIST:
         if word in title: return True
     return False

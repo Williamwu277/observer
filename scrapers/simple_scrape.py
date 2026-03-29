@@ -22,7 +22,8 @@ class SimpleScrapeConfig:
     title_selector: str
     location_selector: Optional[str] = None       # Only necessary if location can be global
     section_click_name: Optional[str] = None      # If the job list is behind a button
-    link_augmentation: str = ""                   # If the scraped url is relative
+    link_augmentation: Optional[str] = ""         # If the scraped url is relative
+    strict_title_filter: Optional[bool] = True    # If True, will filter out internships without software keywords
 
 
 def simple_scrape(config: SimpleScrapeConfig, page: Page) -> List[Tuple[str, str]]:
@@ -63,7 +64,7 @@ def simple_scrape(config: SimpleScrapeConfig, page: Page) -> List[Tuple[str, str
             if not filter_location(LOCATION_WHITELIST, location): continue
 
         # Check job title
-        if not filter_title(title): continue
+        if not filter_title(title, config.strict_title_filter): continue
 
         # Double check title for location blacklist
         if filter_location(LOCATION_BLACKLIST, title): continue
