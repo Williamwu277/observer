@@ -69,8 +69,8 @@ if __name__ == "__main__":
             logger.info(f"Found {len(company_names)} companies in directory")
             shuffle(company_names)
             scraped_results = run_scrapers(playwright, company_names)
-            update_results(company_names, scraped_results)
+            if len(scraped_results) > 0: update_results(company_names, scraped_results)
         else:
             scraped_results = run_scrapers(playwright, argv[1:])
-            update_results(argv[1:], scraped_results)
+            if len(scraped_results) > 0: update_results(argv[1:], scraped_results)
     trim_logs()
