@@ -3,7 +3,7 @@
 LOCATION_WHITELIST = [
     "toronto", "vancouver", "san francisco", "new york", "california", "san matteo", 
     "british columbia", "seattle", "atlanta", "chicago", "los angeles", "washington",
-    "united states", "canada"
+    "united states", "canada", "sunnyvale", "mountain view"
 ]
 
 LOCATION_BLACKLIST = ["london", "united kingdom"]
