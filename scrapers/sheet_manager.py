@@ -4,9 +4,10 @@ from const import SERVICE_ACCOUNT_FILE, RANGE_NAME, SPREADSHEET_COLUMN_MAP
 from dotenv import load_dotenv
 from typing import List, Dict
 from utils import ScrapeResult
+from discord_integration import send_discord_message
+from time import sleep
 import logging
 import os
-
 
 logger = logging.getLogger(__name__)
 
@@ -105,3 +106,16 @@ def update_results(scraper_names: List[str], results: Dict[str, ScrapeResult]) -
     insert_rows_at_top(sheet, len(results_to_update))
     update_spreadsheet(sheet, results_to_update + data)
     logger.info("Spreadsheet updated!")
+
+    logger.info("Sending Discord messages ...")
+    for url in results:
+        status = send_discord_message({
+            "title": results[url].company_name,
+            "url": results[url].url,
+            "description": results[url].title
+        })
+        # Ensure we don't hit the rate limit
+        if not status:
+            break
+        sleep(0.5)
+    logger.info("Discord messages sent!")
