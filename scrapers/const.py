@@ -9,7 +9,11 @@ LOCATION_WHITELIST = [
 LOCATION_BLACKLIST = ["london", "united kingdom"]
 
 TITLE_WHITELIST = [
-    "phd", "software", "engineer", "developer", "machine learning", "ai", "artificial intelligence"
+    "software", "engineer", "developer", "machine learning", "ai", "artificial intelligence"
+]
+
+TITLE_BLACKLIST = [
+    "phd"
 ]
 
 
