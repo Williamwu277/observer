@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from typing import List
-from const import TITLE_WHITELIST
+from const import TITLE_BLACKLIST, TITLE_WHITELIST
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -33,6 +33,8 @@ def filter_title(title: str, strict: bool) -> bool:
     """
     title = title.lower()
     if title.count("intern") <= title.count("interna"): return False
+    for word in TITLE_BLACKLIST:
+        if word in title: return False
     if not strict: return True
     for word in TITLE_WHITELIST:
         if word in title: return True
