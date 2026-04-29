@@ -6,7 +6,7 @@ config = SimpleScrapeConfig(
     base_url="https://internships.shopify.com",
     jobs_selector="div.hero-component_text:has(a)",
     url_selector="a",
-    title_selector=":scope > p > strong:nth-of-type(2)",
+    title_selector="a",
     strict_title_filter=False
 )
 
