@@ -1,4 +1,4 @@
-from simple_scrape import SimpleScrapeConfig, simple_scrape
+from strategies.simple_scrape import SimpleScrapeConfig, simple_scrape
 
 
 config = SimpleScrapeConfig(

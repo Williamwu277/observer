@@ -3,7 +3,7 @@ from google.oauth2 import service_account
 from const import SERVICE_ACCOUNT_FILE, RANGE_NAME, SPREADSHEET_COLUMN_MAP
 from dotenv import load_dotenv
 from typing import List, Dict
-from utils import ScrapeResult
+from models import ScrapeResult
 from discord_integration import send_discord_message
 from time import sleep
 import logging
@@ -103,6 +103,9 @@ def update_results(scraper_names: List[str], results: Dict[str, ScrapeResult]) -
         for url in results
     ]
     logger.info(f"Found a total of {len(results_to_update)} new jobs to update!")
+
+    if len(results_to_update) == 0: return
+
     insert_rows_at_top(sheet, len(results_to_update))
     update_spreadsheet(sheet, results_to_update + data)
     logger.info("Spreadsheet updated!")

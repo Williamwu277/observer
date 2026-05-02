@@ -1,15 +1,18 @@
 import logging
+
 from datetime import datetime
 from time import sleep
 from random import uniform, shuffle, choice
 from sys import argv
-from importlib import import_module
 from typing import List, Dict
 from playwright.sync_api import Playwright, sync_playwright
 from playwright_stealth import Stealth
+
 from const import USER_AGENTS
-from utils import ScrapeResult, get_company_directory, trim_logs
+from utils import get_company_directory, trim_logs
 from sheet_manager import update_results
+from scraping_framework import scrape_integration
+from models import ScrapeResult
 
 
 logging.basicConfig(
@@ -34,29 +37,30 @@ def run_scrapers(playwright: Playwright, scraper_names: List[str]) -> Dict[str,S
         headless=False,
         args=["--headless=new"],
     )
+
     scraped_results = {}
 
-    for name in scraper_names:  
-        # Import the scraper module and run it with its config
-        module = import_module(f"configs.{name}")
+    for i, name in enumerate(scraper_names):  
         context = browser.new_context(user_agent=choice(USER_AGENTS))
         page = context.new_page()
         Stealth().apply_stealth_sync(page)
+
         logger.info(f"Now scraping: {name}")
 
         try:
-            results = module.strategy(module.config, page)
-            for title, url in results:
-                if url in scraped_results: logger.warning(f"Duplicate URL found: {url}")
-                scraped_results[url] = ScrapeResult(title, url, name, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                logger.info(scraped_results[url])
+            results = scrape_integration(name, page)
+            for result in results:
+                if result.url in scraped_results: logger.warning(f"Duplicate URL found: {result.url}")
+                result.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                scraped_results[result.url] = result
+                logger.info(scraped_results[result.url])
         except Exception:
             logger.error(f"Error scraping {name}", exc_info=True)
 
         context.close()
         logger.info(f"Finished scraping: {name}")
 
-        sleep(uniform(2, 10))
+        if i < len(scraper_names) - 1: sleep(uniform(2, 10))
 
     browser.close()
     return scraped_results

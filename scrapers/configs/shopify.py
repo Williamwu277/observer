@@ -1,4 +1,4 @@
-from simple_scrape import SimpleScrapeConfig, simple_scrape
+from strategies.simple_scrape import SimpleScrapeConfig, simple_scrape
 
 
 config = SimpleScrapeConfig(
@@ -7,7 +7,6 @@ config = SimpleScrapeConfig(
     jobs_selector="div.hero-component_text:has(a)",
     url_selector="a",
     title_selector="a",
-    strict_title_filter=False
 )
 
 strategy = simple_scrape

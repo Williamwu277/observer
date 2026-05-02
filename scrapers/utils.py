@@ -1,19 +1,9 @@
 from datetime import datetime, timedelta
 from typing import List
-from const import TITLE_BLACKLIST, TITLE_WHITELIST
 from pathlib import Path
-from dataclasses import dataclass
 
-
-@dataclass
-class ScrapeResult:
-    """
-    Data class to store scraping results
-    """
-    title: str
-    url: str
-    company_name: str
-    timestamp: str
+from const import TITLE_BLACKLIST, TITLE_WHITELIST, LOCATION_BLACKLIST, LOCATION_WHITELIST
+from models import ScrapeResult
 
 
 def get_company_directory() -> List[str]:
@@ -27,13 +17,20 @@ def get_company_directory() -> List[str]:
     return company_names
 
 
-def filter_title(title: str, strict: bool) -> bool:
+def filter_intern_title(title: str) -> bool:
     """
-    Filter out irrelevant job titles
+    Filter job for intern title
     """
     title = title.lower()
     if title.count("intern") <= title.count("interna"): return False
-    if not strict: return True
+    return True
+
+
+def filter_title_role(title: str) -> bool:
+    """
+    Filter for roles that are relevant
+    """
+    title = title.lower()
     for word in TITLE_BLACKLIST:
         if word in title: return False
     for word in TITLE_WHITELIST:
@@ -49,6 +46,36 @@ def filter_location(location_list: List[str], location: str) -> bool:
     for word in location_list:
         if word in location: return True
     return False
+
+
+def filter_out_location(location_string: str) -> bool:
+    """
+    Returns whether or not the location string has a blacklisted location
+    """
+    return filter_location(LOCATION_BLACKLIST, location_string)
+
+
+def filter_for_location(location_string: str) -> bool:
+    """
+    Returns whether or not the location string has a whitelisted location
+    """
+    return filter_location(LOCATION_WHITELIST, location_string)
+
+
+def filter_job(job: ScrapeResult) -> bool:
+    """
+    Filters a job based on the title and location. Returns True if the job passes the filters
+    """
+    if job.location is not None:
+        if not filter_for_location(job.location): return False
+
+    if not filter_intern_title(job.title): return False
+
+    if not filter_title_role(job.title): return False
+
+    if filter_out_location(job.title): return False
+
+    return True
 
 
 def trim_logs() -> None:
