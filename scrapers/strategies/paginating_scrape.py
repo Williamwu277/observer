@@ -62,7 +62,7 @@ def paginating_scrape(config: PaginatingScrapeConfig, page: Page) -> dict[str, L
         if next_page_element.count() == 0 or not next_page_element.is_enabled(): break # Ensure the selector already makes sure the button is clickable
 
         next_page_element.click()
-        page.wait_for_timeout(uniform(5000, 7000)) # Pray the website loaded the next page
+        page.wait_for_timeout(uniform(3000, 5000)) # Pray the website loaded the next page
         
     logger.info(f"Found {len(jobs_list)} jobs total")
 
