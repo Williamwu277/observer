@@ -9,6 +9,7 @@ config = PaginatingScrapeConfig(
     title_selector="a",
     location_selector="li:nth-child(1)",
     next_page_selector="a[aria-label='Next page']",
+    link_augmentation="https://www.pinterestcareers.com"
 )
 
 strategy = paginating_scrape
