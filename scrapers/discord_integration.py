@@ -26,7 +26,7 @@ def send_discord_message(message: Dict[str, str]) -> bool:
                 }
             })
             if response.status_code != 204:
-                logger.error(f"Failed to send Discord message: {response.status_code}")
+                logger.error(f"Failed to send Discord message: {response}")
             else:
                 return True
         except Exception as e:
