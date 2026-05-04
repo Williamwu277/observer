@@ -30,7 +30,7 @@ Details of each run will be stored within `/logs` in case you need to debug
 
 ## Outline
 
-The idea behind the scraper is that each company has a config and a strategy. The strategy is the function which performs the scraping, while the config stores the unique selectors and variables for each site (so that strategies are reusable). In this case, the default strategy would be `simple_scrape.py`. For each company, the strategy is called with the `page` from Playwright and the config variable as the parameters
+The idea behind the scraping framework is that each scrape has three states: Navigating to page, finding jobs, and filtering jobs. Navigating to the page and filtering jobs is the same for each integration. Thus, only finding the jobs ever needs to be changed for each portal. Additionally, we can further abstract away finding the jobs as portals usually follow a pattern. To accomplish this, each company has a config and a strategy. The strategy is the function which performs the find jobs scraping, while the config stores the unique selectors and variables for each site (so that strategies are reusable). In this case, the default strategy would be `simple_scrape.py`. For each company, the strategy is called with the `page` from Playwright and the config variable as the parameters
 
 You can see the examples within `/config` to get an idea. To scrape a new company, you can create a new config that corresponds to an existing strategy (or create a new strategy)
 
@@ -46,6 +46,8 @@ Currently, there are a number of techniques employed to avoid the automated bot 
 The reason this is a locally run script is because bot detection is less strict on local ip addresses. Hosting on the cloud results in data center ip addresses and much more scrutiny. You'd probably have to get a proxy in order to get that to work ...
 
 Additionally, ip addresses have reputations. You should only scrape so many sites within a short time period
+
+Finally, there are some portals that are noticeably absent from the list of configs. For example, Google. The problem is that Google has extremely sophisticated anti-bot detection systems (they have the money to do so) and they make it really obvious they don't want scraping (css selectors are obfuscated).
 
 ## Todo
 
