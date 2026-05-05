@@ -26,11 +26,11 @@ def send_discord_message(message: Dict[str, str]) -> bool:
                 }
             })
             if response.status_code != 204:
-                logger.error(f"Failed to send Discord message: {response}")
+                logger.error(f"Failed to send Discord message: {response.status_code} {response.text}")
             else:
                 return True
         except Exception as e:
-            logger.error(f"Failed to send Discord message: {e}")
+            logger.error(f"Failed to send Discord message", exc_info=True)
     else:
         logger.warning("No Discord webhook URL found")
 

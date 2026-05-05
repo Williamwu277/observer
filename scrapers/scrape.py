@@ -28,7 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run_scrapers(playwright: Playwright, scraper_names: List[str]) -> Dict[str,ScrapeResult]:
+def run_scrapers(playwright: Playwright, scraper_names: List[str]) -> Dict[str, ScrapeResult]:
     """
     Entry point for running the scraping process
     """
@@ -51,6 +51,8 @@ def run_scrapers(playwright: Playwright, scraper_names: List[str]) -> Dict[str,S
             results = scrape_integration(name, page)
             for result in results:
                 if result.url in scraped_results: logger.warning(f"Duplicate URL found: {result.url}")
+                # Resetting name prevents duplicate spreadsheet updates
+                result.company_name = name
                 result.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 scraped_results[result.url] = result
                 logger.info(scraped_results[result.url])
