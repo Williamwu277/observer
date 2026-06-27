@@ -14,6 +14,8 @@ load_dotenv()
 
 DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL')
 DISCORD_ROLE_ID = "1519577748077678642"
+MAX_EMBEDS_PER_MESSAGE = 10
+MAX_TIMEOUT = 10
 RETRY_CONFIG = Retry(
     total=5,
     backoff_factor=1,
@@ -30,12 +32,12 @@ session.mount("http://", _adapter)
 
 
 def send_discord_update(messages: List[Dict[str, str]]) -> bool:
-    """
+    f"""
     Send a message to the Discord webhook
 
     Args: 
         messages: List of Discord embed dicts with title, url and description fields. 
-            Up to 10 can be sent at a time maximum.
+            Up to {MAX_EMBEDS_PER_MESSAGE} can be sent at a time maximum.
 
     Returns:
         True or false depending on whether the message was sent successfully
@@ -54,7 +56,7 @@ def send_discord_update(messages: List[Dict[str, str]]) -> bool:
                     "roles": [DISCORD_ROLE_ID]
                 }
             },
-            timeout=(5, 10),
+            timeout = MAX_TIMEOUT,
         )
 
         if response.status_code != 204:
@@ -65,4 +67,26 @@ def send_discord_update(messages: List[Dict[str, str]]) -> bool:
         logger.error("Failed to send Discord message", exc_info=True)
         return False
 
+    return True
+
+
+def send_discord_batch_update(internship_list: List[Dict[str, str]]) -> bool:
+    """
+    Send all the internship updates to the Discord webhook
+
+    Args: 
+        messages: List of Discord embed dicts with title, url and description fields. 
+
+    Returns:
+        True or false depending on whether the messages were sent successfully
+    """
+    send_queue = []
+    for i, message in enumerate(internship_list):
+        send_queue.append(message)
+        if len(send_queue) == MAX_EMBEDS_PER_MESSAGE or i == len(internship_list) - 1:
+            status = send_discord_update(send_queue)
+            send_queue = []
+            # If the message fails the exponential retries, accept the loss and back off
+            if not status: return False
+    
     return True

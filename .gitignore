@@ -3,3 +3,4 @@ logs/
 credentials.json
 .cursorignore
 .env
+.cursor/skills/changelog-publisher/.last_commit

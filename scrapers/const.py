@@ -33,7 +33,7 @@ SERVICE_ACCOUNT_FILE = "../credentials.json"
 
 RANGE_NAME = "2026!A2:E"
 
-SPREADSHEET_COLUMN_MAP = {
+DATA_MAP = {
     "Date Scraped": 0,
     "Company": 1,
     "Title": 2,
