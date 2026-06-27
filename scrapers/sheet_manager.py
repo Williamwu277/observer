@@ -4,8 +4,7 @@ from const import SERVICE_ACCOUNT_FILE, RANGE_NAME, SPREADSHEET_COLUMN_MAP
 from dotenv import load_dotenv
 from typing import List, Dict
 from models import ScrapeResult
-from discord_integration import send_discord_message
-from time import sleep
+from discord_integration import send_discord_update
 import logging
 import os
 
@@ -102,23 +101,30 @@ def update_results(scraper_names: List[str], results: Dict[str, ScrapeResult]) -
         ] 
         for url in results
     ]
+
     logger.info(f"Found a total of {len(results_to_update)} new jobs to update!")
 
     if len(results_to_update) == 0: return
 
     insert_rows_at_top(sheet, len(results_to_update))
     update_spreadsheet(sheet, results_to_update + data)
+
     logger.info("Spreadsheet updated!")
 
-    logger.info("Sending Discord messages ...")
-    for url in results:
-        status = send_discord_message({
-            "title": results[url].company_name,
-            "url": results[url].url,
-            "description": results[url].title
+    logger.info("Attempting to send Discord messages ...")
+
+    send_queue = []
+    while results_to_update:
+        current_result = results_to_update.pop(0)
+        send_queue.append({
+            "title": current_result[1],
+            "url": current_result[3],
+            "description": current_result[2]
         })
-        # Ensure we don't hit the rate limit
-        if not status:
-            break
-        sleep(0.5)
-    logger.info("Discord messages sent!")
+        if len(send_queue) == 10 or not results_to_update:
+            status = send_discord_update(send_queue)
+            send_queue = []
+            # If the message fails the exponential retries, accept the loss and back off
+            if not status: break
+
+    logger.info("Finished sending Discord messages!")
