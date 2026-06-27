@@ -8,7 +8,7 @@ config = SimpleScrapeConfig(
     url_selector="a",
     title_selector="a > span > p",
     location_selector=":scope > p",
-    link_augmentation="https://www.coinbase.com/en-ca"
+    link_augmentation=lambda url: "https://www.coinbase.com/en-ca" + url
 )
 
 strategy = simple_scrape

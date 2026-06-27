@@ -2,7 +2,7 @@ import logging
 
 from playwright.sync_api import Page, TimeoutError
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Callable, Optional, List
 from random import uniform
 
 from models import ScrapeConfig, ScrapeResult
@@ -23,7 +23,7 @@ class SimpleScrapeConfig(ScrapeConfig):
     location_selector: Optional[str] = None       # Only necessary if location can be global
     section_click_name: Optional[str] = None      # If the job list is behind a button
     more_jobs_selector: Optional[str] = None      # If not all jobs are shown at once. Not pagination
-    link_augmentation: Optional[str] = ""         # If the scraped url is relative
+    link_augmentation: Optional[Callable[[str], str]] = None  # If the scraped url is relative
 
 
 def simple_scrape(config: SimpleScrapeConfig, page: Page) -> dict[str, List[ScrapeResult]]:
@@ -59,7 +59,7 @@ def simple_scrape(config: SimpleScrapeConfig, page: Page) -> dict[str, List[Scra
     for job in jobs_list:
         url = job.locator(config.url_selector).first.get_attribute("href")
         if config.link_augmentation and not url.startswith("https"):
-            url = config.link_augmentation + url
+            url = config.link_augmentation(url)
         title = job.locator(config.title_selector).first.text_content().strip()
 
         # Check location if necessary

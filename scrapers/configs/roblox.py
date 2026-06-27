@@ -7,7 +7,7 @@ config = SimpleScrapeConfig(
     jobs_selector="#jobs-filter a",
     url_selector=":scope",
     title_selector="p",
-    link_augmentation="https://careers.roblox.com"
+    link_augmentation=lambda url: "https://careers.roblox.com" + url
 )
 
 strategy = simple_scrape

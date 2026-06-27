@@ -8,8 +8,7 @@ config = SimpleScrapeConfig(
     url_selector=":scope",
     title_selector="div:nth-child(1)",
     location_selector="div:nth-child(4)",
-    # TODO: Add proper id regex for this link augmentation
-    link_augmentation="job id:"
+    link_augmentation=lambda id: f"https://www.riotgames.com/en/work-with-us/job/{id.split('/')[-1]}"
 )
 
 strategy = simple_scrape

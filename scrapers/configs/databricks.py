@@ -8,7 +8,7 @@ config = SimpleScrapeConfig(
     url_selector=":scope",
     title_selector="span:nth-child(1)",
     location_selector="span:nth-child(2)",
-    link_augmentation="https://www.databricks.com"
+    link_augmentation=lambda url: "https://www.databricks.com" + url
 )
 
 strategy = simple_scrape

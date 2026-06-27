@@ -8,7 +8,7 @@ config = SimpleScrapeConfig(
     url_selector=":scope",
     title_selector=":scope",
     more_jobs_selector="button:has-text('Show more openings')",
-    link_augmentation="https://www.uber.com",
+    link_augmentation=lambda url: "https://www.uber.com" + url,
 )
 
 strategy = simple_scrape

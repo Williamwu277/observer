@@ -7,7 +7,7 @@ config = SimpleScrapeConfig(
     jobs_selector="a[href^='/wealthsimple/']",
     url_selector=":scope",
     title_selector="h3",
-    link_augmentation="https://jobs.ashbyhq.com",
+    link_augmentation=lambda url: "https://jobs.ashbyhq.com" + url,
 )
 
 strategy = simple_scrape

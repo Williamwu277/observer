@@ -7,7 +7,7 @@ config = SimpleScrapeConfig(
     jobs_selector="#main a[href^='/careers']",
     url_selector=":scope",
     title_selector="h2",
-    link_augmentation="https://openai.com",
+    link_augmentation=lambda url: "https://openai.com" + url,
 )
 
 strategy = simple_scrape

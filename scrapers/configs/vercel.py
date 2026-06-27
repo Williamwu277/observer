@@ -7,7 +7,7 @@ config = SimpleScrapeConfig(
     jobs_selector='a[href^="/careers/"]',
     url_selector=":scope",
     title_selector="div p:nth-child(1)",
-    link_augmentation="https://vercel.com",
+    link_augmentation=lambda url: "https://vercel.com" + url,
 )
 
 strategy = simple_scrape

@@ -8,7 +8,7 @@ config = PaginatingScrapeConfig(
     url_selector="h3 a",
     title_selector="h3 a",
     next_page_selector="button[data-test-id='next-page']",
-    link_augmentation="https://www.amazon.jobs/en"
+    link_augmentation=lambda url: "https://www.amazon.jobs/en" + url
 )
 
 strategy = paginating_scrape
