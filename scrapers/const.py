@@ -1,20 +1,36 @@
 # --------------------------------------- Job Search Filters -----------------------------------------
 
 LOCATION_WHITELIST = [
-    "toronto", "vancouver", "san francisco", "new york", "california", "san matteo", 
-    "british columbia", "seattle", "atlanta", "chicago", "los angeles", "washington",
-    "united states", "canada", "sunnyvale", "mountain view"
+    "toronto",
+    "vancouver",
+    "san francisco",
+    "new york",
+    "california",
+    "san matteo",
+    "british columbia",
+    "seattle",
+    "atlanta",
+    "chicago",
+    "los angeles",
+    "washington",
+    "united states",
+    "canada",
+    "sunnyvale",
+    "mountain view",
 ]
 
 LOCATION_BLACKLIST = ["london", "united kingdom"]
 
 TITLE_WHITELIST = [
-    "software", "engineer", "developer", "machine learning", "ai", "artificial intelligence"
+    "software",
+    "engineer",
+    "developer",
+    "machine learning",
+    "ai",
+    "artificial intelligence",
 ]
 
-TITLE_BLACKLIST = [
-    "phd"
-]
+TITLE_BLACKLIST = ["phd"]
 
 
 # --------------------------------------- Scraping Constants -----------------------------------------
@@ -41,12 +57,25 @@ VIEWPORT_CONFIGURATIONS = [
 
 SERVICE_ACCOUNT_FILE = "../credentials.json"
 
-RANGE_NAME = "2026!A2:E"
+INTERNSHIP_RANGE = "2026!A2:E"
+STATUS_RANGE = "Status!A3:F"
 
-DATA_MAP = {
-    "Date Scraped": 0,
-    "Company": 1,
-    "Title": 2,
-    "Url": 3,
-    "Status": 4
+DATA_MAP = {"Date Scraped": 0, "Company": 1, "Title": 2, "Url": 3, "Status": 4}
+STATUS_DATA_MAP = {
+    "Name": 0,
+    "Portal": 1,
+    "Status": 2,
+    "Last Updated": 3,
+    "Scrape Time": 4,
+    "Request Size": 5,
 }
+
+
+# -------------------------------------------- Status Constants -------------------------------------------
+
+# A scraper is finding jobs (even if none pass the internship filters)
+STATUS_OPERATIONAL = "Operational"
+# A scraper is finding zero jobs but is not erroring
+STATUS_QUESTIONABLE = "Questionable"
+# A scraper is erroring on the run, and not because it saw zero jobs
+STATUS_DOWN = "Down"

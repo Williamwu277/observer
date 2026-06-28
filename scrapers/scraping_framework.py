@@ -1,8 +1,7 @@
 import logging
 
-from importlib import import_module
 from playwright.sync_api import Page
-from typing import List, Any
+from typing import List, Any, Callable
 from random import uniform
 
 from models import ScrapeConfig, ScrapeResult
@@ -12,14 +11,10 @@ from utils import filter_job
 logger = logging.getLogger(__name__)
 
 
-def scrape_integration(integration_name: str, page: Page) -> List[ScrapeResult]:
+def scrape_integration(config: ScrapeConfig, strategy: Callable, page: Page) -> List[ScrapeResult]:
     """
     Scraping framework to scrape a given integration
     """
-    module = import_module(f"configs.{integration_name}")
-    strategy = module.strategy
-    config = module.config
-
     scrape_context = {
         "config": config,
         "page": page

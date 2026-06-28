@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Callable
 from pathlib import Path
+from playwright.sync_api import CDPSession
 
 from const import TITLE_BLACKLIST, TITLE_WHITELIST, LOCATION_BLACKLIST, LOCATION_WHITELIST
 from models import ScrapeResult
@@ -76,6 +77,24 @@ def filter_job(job: ScrapeResult) -> bool:
     if filter_out_location(job.title): return False
 
     return True
+
+
+def attach_network_monitor(cdp_session: CDPSession) -> Callable[[], int]:
+    """
+    Track the total bytes transferred over the wire during a scrape using the
+    Chrome DevTools Protocol. This estimates how much data a residential proxy
+    would need to transfer for the run.
+
+    Returns a function that yields the current total of transferred bytes.
+    """
+    cdp_session.send("Network.enable")
+    transferred = {"bytes": 0}
+
+    def on_loading_finished(event: dict) -> None:
+        transferred["bytes"] += event.get("encodedDataLength", 0)
+
+    cdp_session.on("Network.loadingFinished", on_loading_finished)
+    return lambda: transferred["bytes"]
 
 
 def trim_logs() -> None:

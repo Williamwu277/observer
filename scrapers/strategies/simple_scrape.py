@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional, List
 from random import uniform
 
-from models import ScrapeConfig, ScrapeResult
+from models import ScrapeConfig, ScrapeResult, NoJobsFoundError
 
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ def simple_scrape(config: SimpleScrapeConfig, page: Page) -> dict[str, List[Scra
         page.locator(config.jobs_selector).first.wait_for(state="attached", timeout=5000)
         jobs_list = page.locator(config.jobs_selector).all()
     except TimeoutError:
-        raise Exception(f"No jobs found for {config.company_name}. Double check the jobs selector and url selector.")
+        raise NoJobsFoundError(f"No jobs found for {config.company_name}. Double check the jobs selector and url selector.")
 
     results = []
 
