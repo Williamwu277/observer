@@ -8,7 +8,7 @@ from typing import List, Dict
 from playwright.sync_api import Playwright, sync_playwright
 from playwright_stealth import Stealth
 
-from const import USER_AGENTS, DATA_MAP
+from const import USER_AGENTS, DATA_MAP, VIEWPORT_CONFIGURATIONS
 from utils import get_company_directory, trim_logs
 from sheet_manager import SheetManager
 from discord_integration import send_discord_batch_update
@@ -42,7 +42,10 @@ def run_scrapers(playwright: Playwright, scraper_names: List[str]) -> Dict[str, 
     scraped_results = {}
 
     for i, name in enumerate(scraper_names):  
-        context = browser.new_context(user_agent=choice(USER_AGENTS))
+        context = browser.new_context(
+            user_agent=choice(USER_AGENTS),
+            viewport=choice(VIEWPORT_CONFIGURATIONS),
+        )
         page = context.new_page()
         Stealth().apply_stealth_sync(page)
 
