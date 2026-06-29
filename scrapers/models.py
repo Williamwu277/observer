@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Callable, Optional
 
 
 class NoJobsFoundError(Exception):
@@ -17,6 +17,16 @@ class ScrapeConfig:
 
     company_name: str
     base_url: str
+    jobs_selector: str
+    url_selector: str
+    title_selector: str
+    # Only necessary if location can be global
+    location_selector: Optional[str] = field(default=None, kw_only=True)
+    # If the scraped url is relative
+    link_augmentation: Optional[Callable[[str], str]] = field(
+        default=None, kw_only=True
+    )
+    cookies_accept_text: Optional[str] = field(default=None, kw_only=True)
 
 
 @dataclass

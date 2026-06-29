@@ -2,14 +2,14 @@ import logging
 
 from playwright.sync_api import Page, TimeoutError
 from dataclasses import dataclass
-from typing import Callable, Optional, List
+from typing import List
 from random import uniform
 
 from models import ScrapeConfig, ScrapeResult, NoJobsFoundError
 
 
 logger = logging.getLogger(__name__)
-MAX_PAGES = 10
+MAX_PAGES = 5
 
 
 @dataclass
@@ -20,13 +20,6 @@ class PaginatingScrapeConfig(ScrapeConfig):
     """
 
     next_page_selector: str
-    jobs_selector: str
-    url_selector: str
-    title_selector: str
-    location_selector: Optional[str] = None  # Only necessary if location can be global
-    link_augmentation: Optional[Callable[[str], str]] = (
-        None  # If the scraped url is relative
-    )
 
 
 def paginating_scrape(
@@ -48,9 +41,10 @@ def paginating_scrape(
             )
             current_page_jobs = page.locator(config.jobs_selector).all()
         except TimeoutError:
-            raise Exception(
-                f"No jobs found on page {page_number + 1} for {config.company_name}"
-            )
+            if page_number > 0:
+                raise Exception(
+                    f"No jobs found on page {page_number + 1} for {config.company_name}"
+                )
 
         # Grab the information from each job
         for job in current_page_jobs:

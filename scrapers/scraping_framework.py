@@ -11,14 +11,13 @@ from utils import filter_job
 logger = logging.getLogger(__name__)
 
 
-def scrape_integration(config: ScrapeConfig, strategy: Callable, page: Page) -> List[ScrapeResult]:
+def scrape_integration(
+    config: ScrapeConfig, strategy: Callable, page: Page
+) -> List[ScrapeResult]:
     """
     Scraping framework to scrape a given integration
     """
-    scrape_context = {
-        "config": config,
-        "page": page
-    }
+    scrape_context = {"config": config, "page": page}
 
     states = [
         {"state": "NAVIGATING_TO_PORTAL", "action": navigate_to_portal},
@@ -27,15 +26,12 @@ def scrape_integration(config: ScrapeConfig, strategy: Callable, page: Page) -> 
     ]
 
     for state in states:
+        # Don't try/except here because we want to catch in scrape.py
         logger.info(f"Starting state: [{state['state']}]")
-        try: 
-            result = state["action"](**scrape_context)
-            scrape_context = {**scrape_context, **result}
-        except Exception as error: 
-            logger.error(f"Error in state [{state['state']}]: {error}")
-            raise error
+        result = state["action"](**scrape_context)
+        scrape_context = {**scrape_context, **result}
         logger.info(f"Finished state: [{state['state']}]")
-    
+
     return scrape_context["jobs"]
 
 
@@ -46,6 +42,11 @@ def navigate_to_portal(config: ScrapeConfig, page: Page) -> dict:
     logger.info(f"Navigating to: {config.base_url}")
     page.goto(config.base_url, referer="https://www.google.com/")
     page.wait_for_timeout(uniform(1000, 3000))
+
+    if config.cookies_accept_text:
+        page.get_by_role("button", name=config.cookies_accept_text).first.click()
+        page.wait_for_timeout(uniform(1000, 3000))
+
     return {}
 
 
@@ -58,9 +59,4 @@ def filter_jobs(jobs: List[ScrapeResult], **_: Any) -> dict[str, List[ScrapeResu
     """
     filtered_jobs = list(filter(lambda job: filter_job(job), jobs))
     logger.info(f"Found {len(filtered_jobs)} jobs after filtering")
-    return {
-        "jobs": list(
-            filtered_jobs
-        )
-    }
-    
+    return {"jobs": list(filtered_jobs)}
