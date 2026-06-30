@@ -54,3 +54,4 @@ class StatusResult:
     last_updated: str  # When the integration was last checked
     scrape_time: float  # How long the scrape took in seconds
     request_size: float  # Megabytes transferred over the wire during the scrape
+    error: Optional[str] = field(default=None, kw_only=True)

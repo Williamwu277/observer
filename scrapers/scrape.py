@@ -1,4 +1,5 @@
 import logging
+import traceback
 
 from datetime import datetime
 from time import sleep, perf_counter
@@ -22,7 +23,12 @@ from const import (
 )
 from utils import get_company_directory, trim_logs, attach_network_monitor
 from sheet_manager import SheetManager
-from discord_integration import send_discord_batch_update
+from discord_integration import (
+    WebhookType,
+    send_discord_batch_update,
+    send_discord_update,
+    MAX_EMBED_DESCRIPTION_LENGTH,
+)
 from scraping_framework import scrape_integration
 from models import ScrapeResult, StatusResult, NoJobsFoundError
 
@@ -72,6 +78,7 @@ def run_scrapers(
 
         status = STATUS_OPERATIONAL
         portal_url = ""
+        error = None
         start_time = perf_counter()
 
         try:
@@ -92,6 +99,7 @@ def run_scrapers(
         except Exception:
             logger.error(f"Error scraping {name}", exc_info=True)
             status = STATUS_DOWN
+            error = traceback.format_exc()
 
         status_results.append(
             StatusResult(
@@ -101,6 +109,7 @@ def run_scrapers(
                 last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 scrape_time=round(perf_counter() - start_time, 2),
                 request_size=round(get_transferred_bytes() / (1024 * 1024), 2),
+                error=error,
             )
         )
 
@@ -197,10 +206,27 @@ def scrape_internships(company_queue: List[str]):
     # Aggregate and update scraper health regardless of whether new jobs were found
     update_status(sheet_manager, status_results)
 
+    # Send scraper errors to the discord error webhook. One at a time to honour embed length limits
+    error_messages = [
+        {
+            "title": status_result.company_name,
+            "url": status_result.portal_url,
+            "description": status_result.error[-MAX_EMBED_DESCRIPTION_LENGTH:],
+        }
+        for status_result in status_results
+        if status_result.error
+    ]
+
+    if len(error_messages) > 0:
+        logger.info("Attempting to send scraper error reports to Discord")
+
+    for message in error_messages:
+        send_discord_update(WebhookType.ERRORS, [message])
+
     if len(spreadsheet_updates) == 0:
         return
 
-    logger.info("Attempting to send Discord updates")
+    logger.info("Attempting to send internship job announcements on Discord")
 
     # Turn the data into a Discord friendly format
     discord_messages = [
@@ -212,7 +238,7 @@ def scrape_internships(company_queue: List[str]):
         for url in scraped_results
     ]
 
-    send_discord_batch_update(discord_messages)
+    send_discord_batch_update(WebhookType.ANNOUNCEMENTS, discord_messages)
 
     logger.info("Finished scraping internships!")
 
