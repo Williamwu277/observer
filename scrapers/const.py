@@ -58,7 +58,7 @@ VIEWPORT_CONFIGURATIONS = [
 SERVICE_ACCOUNT_FILE = "../credentials.json"
 
 INTERNSHIP_RANGE = "2026!A2:E"
-STATUS_RANGE = "Status!A3:F"
+STATUS_RANGE = "Status!A3:G"
 
 DATA_MAP = {"Date Scraped": 0, "Company": 1, "Title": 2, "Url": 3, "Status": 4}
 STATUS_DATA_MAP = {
