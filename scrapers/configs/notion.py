@@ -2,7 +2,7 @@ from strategies.simple_scrape import SimpleScrapeConfig, simple_scrape
 
 
 config = SimpleScrapeConfig(
-    company_name="Notion",
+    company_name="notion",
     base_url="https://www.notion.com/careers?department=earlycareer",
     jobs_selector="section[aria-labelledby='open-positions-earlycareer'] a",
     url_selector=":scope",

@@ -2,7 +2,7 @@ from strategies.paginating_scrape import PaginatingScrapeConfig, paginating_scra
 
 
 config = PaginatingScrapeConfig(
-    company_name="Pinterest",
+    company_name="pinterest",
     base_url="https://www.pinterestcareers.com/jobs/?search=&team=University&pagesize=20#results",
     jobs_selector='div.job-listing div.card-job',
     url_selector="a",

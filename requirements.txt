@@ -3,3 +3,5 @@ playwright-stealth
 google-api-python-client
 python-dotenv
 requests
+Pillow
+imagehash

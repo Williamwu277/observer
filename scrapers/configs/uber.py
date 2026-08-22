@@ -2,7 +2,7 @@ from strategies.paginating_scrape import PaginatingScrapeConfig, paginating_scra
 
 
 config = PaginatingScrapeConfig(
-    company_name="Uber",
+    company_name="uber",
     base_url="https://jobs.uber.com/en/jobs/?location=San+Francisco&radius=60&lat=37.7749295&lng=-122.41941550000001&team=University&subTeam=Engineering",
     jobs_selector="div#js-job-search-results > div",
     url_selector="a",
@@ -10,6 +10,7 @@ config = PaginatingScrapeConfig(
     next_page_selector="a[aria-label='Go to next page']",
     link_augmentation=lambda url: "https://jobs.uber.com" + url,
     cookies_accept_text="Accept All",
+    empty_portal_selector="div#search-feedback:has-text('No jobs found.')"
 )
 
 strategy = paginating_scrape

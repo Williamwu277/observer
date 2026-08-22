@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import List
 from random import uniform
 
-from models import ScrapeConfig, ScrapeResult, NoJobsFoundError
+from models import ScrapeConfig, ScrapeResult
 
 
 logger = logging.getLogger(__name__)
@@ -80,8 +80,5 @@ def paginating_scrape(
         page.wait_for_timeout(uniform(3000, 5000))
 
     logger.info(f"Found {len(jobs_list)} jobs total")
-
-    if len(jobs_list) == 0:
-        raise NoJobsFoundError(f"No jobs found for {config.company_name}")
 
     return {"jobs": jobs_list}

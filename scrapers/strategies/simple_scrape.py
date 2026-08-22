@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Optional, List
 from random import uniform
 
-from models import ScrapeConfig, ScrapeResult, NoJobsFoundError
+from models import ScrapeConfig, ScrapeResult
 
 
 logger = logging.getLogger(__name__)
@@ -47,16 +47,16 @@ def simple_scrape(
             more_jobs_element.click()
             page.wait_for_timeout(uniform(3000, 5000))
 
-    # Grab all the jobs
+    # Grab all the jobs. An empty result is handled by the framework's
+    # verification state, which decides whether the portal changed.
     try:
         page.locator(config.jobs_selector).first.wait_for(
             state="attached", timeout=5000
         )
         jobs_list = page.locator(config.jobs_selector).all()
     except TimeoutError:
-        raise NoJobsFoundError(
-            f"No jobs found for {config.company_name}. Double check the jobs selector and url selector."
-        )
+        logger.info(f"No jobs matched the selector for {config.company_name}")
+        return {"jobs": []}
 
     results = []
 

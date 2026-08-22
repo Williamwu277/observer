@@ -1,6 +1,8 @@
 __pycache__/
 logs/
+tmp/
 credentials.json
 .cursorignore
 .env
+.env.prod
 .cursor/skills/changelog-publisher/.last_commit

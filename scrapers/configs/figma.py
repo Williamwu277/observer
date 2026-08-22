@@ -2,7 +2,7 @@ from strategies.simple_scrape import SimpleScrapeConfig, simple_scrape
 
 
 config = SimpleScrapeConfig(
-    company_name="Figma",
+    company_name="figma",
     base_url="https://www.figma.com/careers/#job-openings",
     jobs_selector="div:has(> h2#early-career) a",
     url_selector=":scope",

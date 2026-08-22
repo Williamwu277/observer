@@ -2,7 +2,7 @@ from strategies.simple_scrape import SimpleScrapeConfig, simple_scrape
 
 
 config = SimpleScrapeConfig(
-    company_name="Databricks",
+    company_name="databricks",
     base_url="https://www.databricks.com/company/careers/open-positions?department=University%20Recruiting&location=USCA",
     jobs_selector="div#jobWrap a",
     url_selector=":scope",

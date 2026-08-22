@@ -2,7 +2,7 @@ from strategies.simple_scrape import SimpleScrapeConfig, simple_scrape
 
 
 config = SimpleScrapeConfig(
-    company_name="Roblox",
+    company_name="roblox",
     base_url="https://careers.roblox.com/jobs?type=internship",
     jobs_selector="#jobs-filter a",
     url_selector=":scope",

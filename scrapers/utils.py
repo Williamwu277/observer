@@ -2,8 +2,15 @@ from datetime import datetime, timedelta
 from typing import List, Callable
 from pathlib import Path
 from playwright.sync_api import CDPSession
+from PIL import Image
+import imagehash
 
-from const import TITLE_BLACKLIST, TITLE_WHITELIST, LOCATION_BLACKLIST, LOCATION_WHITELIST
+from const import (
+    TITLE_BLACKLIST,
+    TITLE_WHITELIST,
+    LOCATION_BLACKLIST,
+    LOCATION_WHITELIST,
+)
 from models import ScrapeResult
 
 
@@ -23,7 +30,8 @@ def filter_intern_title(title: str) -> bool:
     Filter job for intern title
     """
     title = title.lower()
-    if title.count("intern") <= title.count("interna"): return False
+    if title.count("intern") <= title.count("interna"):
+        return False
     return True
 
 
@@ -33,9 +41,11 @@ def filter_title_role(title: str) -> bool:
     """
     title = title.lower()
     for word in TITLE_BLACKLIST:
-        if word in title: return False
+        if word in title:
+            return False
     for word in TITLE_WHITELIST:
-        if word in title: return True
+        if word in title:
+            return True
     return False
 
 
@@ -45,7 +55,8 @@ def filter_location(location_list: List[str], location: str) -> bool:
     """
     location = location.lower()
     for word in location_list:
-        if word in location: return True
+        if word in location:
+            return True
     return False
 
 
@@ -68,13 +79,17 @@ def filter_job(job: ScrapeResult) -> bool:
     Filters a job based on the title and location. Returns True if the job passes the filters
     """
     if job.location is not None:
-        if not filter_for_location(job.location): return False
+        if not filter_for_location(job.location):
+            return False
 
-    if not filter_intern_title(job.title): return False
+    if not filter_intern_title(job.title):
+        return False
 
-    if not filter_title_role(job.title): return False
+    if not filter_title_role(job.title):
+        return False
 
-    if filter_out_location(job.title): return False
+    if filter_out_location(job.title):
+        return False
 
     return True
 
@@ -105,4 +120,11 @@ def trim_logs() -> None:
         log_date = datetime.strptime(path.stem, "scrape_%Y-%m-%d_%H-%M-%S").date()
         if log_date < datetime.now().date() - timedelta(days=7):
             path.unlink()
-    
+
+
+def calculate_pHash(image_path: str) -> imagehash.ImageHash:
+    """
+    Calculate the pHash of an image
+    """
+    with Image.open(image_path) as image:
+        return imagehash.phash(image)

@@ -43,15 +43,8 @@ USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 12_7_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
 ]
 
-VIEWPORT_CONFIGURATIONS = [
-    {"width": 1280, "height": 800},
-    {"width": 1366, "height": 768},
-    {"width": 1440, "height": 900},
-    {"width": 1512, "height": 982},
-    {"width": 1536, "height": 864},
-    {"width": 1680, "height": 1050},
-    {"width": 1920, "height": 1080},
-]
+# Fixed viewport so full-page screenshots stay comparable between runs
+VIEWPORT = {"width": 1920, "height": 1080}
 
 # -------------------------------------------- Sheet Constants --------------------------------------------
 
@@ -68,14 +61,10 @@ STATUS_DATA_MAP = {
     "Last Updated": 3,
     "Scrape Time": 4,
     "Request Size": 5,
+    "pHash": 6,
 }
 
 
-# -------------------------------------------- Status Constants -------------------------------------------
+# ------------------------------------------- Experimental Constants -------------------------------------------
 
-# A scraper is finding jobs (even if none pass the internship filters)
-STATUS_OPERATIONAL = "Operational"
-# A scraper is finding zero jobs but is not erroring
-STATUS_QUESTIONABLE = "Questionable"
-# A scraper is erroring on the run, and not because it saw zero jobs
-STATUS_DOWN = "Down"
+P_HASH_THRESHOLD = 4

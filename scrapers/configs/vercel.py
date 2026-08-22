@@ -2,7 +2,7 @@ from strategies.simple_scrape import SimpleScrapeConfig, simple_scrape
 
 
 config = SimpleScrapeConfig(
-    company_name="Vercel",
+    company_name="vercel",
     base_url="https://vercel.com/careers?location=United+States&function=Engineering",
     jobs_selector='a[href^="/careers/"]',
     url_selector=":scope",

@@ -2,7 +2,7 @@ from strategies.simple_scrape import SimpleScrapeConfig, simple_scrape
 
 
 config = SimpleScrapeConfig(
-    company_name="Snowflake",
+    company_name="snowflake",
     base_url="https://careers.snowflake.com/us/en/search-results?keywords=intern",
     jobs_selector="li.jobs-list-item",
     url_selector="span[role='heading'] a",

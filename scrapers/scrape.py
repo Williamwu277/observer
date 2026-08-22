@@ -1,10 +1,13 @@
 import logging
 import traceback
+import shutil
+import imagehash
 
 from datetime import datetime
 from time import sleep, perf_counter
 from random import uniform, shuffle, choice
 from importlib import import_module
+from pathlib import Path
 from sys import argv
 from typing import List, Dict, Tuple
 from playwright.sync_api import Playwright, sync_playwright
@@ -13,15 +16,18 @@ from playwright_stealth import Stealth
 from const import (
     USER_AGENTS,
     DATA_MAP,
-    VIEWPORT_CONFIGURATIONS,
+    VIEWPORT,
     INTERNSHIP_RANGE,
     STATUS_RANGE,
     STATUS_DATA_MAP,
-    STATUS_OPERATIONAL,
-    STATUS_QUESTIONABLE,
-    STATUS_DOWN,
+    P_HASH_THRESHOLD,
 )
-from utils import get_company_directory, trim_logs, attach_network_monitor
+from utils import (
+    get_company_directory,
+    trim_logs,
+    attach_network_monitor,
+    calculate_pHash,
+)
 from sheet_manager import SheetManager
 from discord_integration import (
     WebhookType,
@@ -30,7 +36,7 @@ from discord_integration import (
     MAX_EMBED_DESCRIPTION_LENGTH,
 )
 from scraping_framework import scrape_integration
-from models import ScrapeResult, StatusResult, NoJobsFoundError
+from models import NoJobsFoundError, ScrapeResult, ScrapeStatus, StatusResult
 
 
 logging.basicConfig(
@@ -52,7 +58,7 @@ def run_scrapers(
     playwright: Playwright, scraper_names: List[str]
 ) -> Tuple[Dict[str, ScrapeResult], List[StatusResult]]:
     """
-    Entry point for running the scraping process
+    Entry point for starting the scraping process
     """
     # headless=False and args=["--headless=new"] avoid roblox not loading for some reason
     browser = playwright.chromium.launch(
@@ -66,7 +72,7 @@ def run_scrapers(
     for i, name in enumerate(scraper_names):
         context = browser.new_context(
             user_agent=choice(USER_AGENTS),
-            viewport=choice(VIEWPORT_CONFIGURATIONS),
+            viewport=VIEWPORT,
         )
         page = context.new_page()
         Stealth().apply_stealth_sync(page)
@@ -76,7 +82,7 @@ def run_scrapers(
 
         logger.info(f"Now scraping: {name}")
 
-        status = STATUS_OPERATIONAL
+        status = ScrapeStatus.OPERATIONAL
         portal_url = ""
         error = None
         start_time = perf_counter()
@@ -88,17 +94,17 @@ def run_scrapers(
             for result in results:
                 if result.url in scraped_results:
                     logger.warning(f"Duplicate URL found: {result.url}")
-                # Resetting name prevents duplicate spreadsheet updates
-                result.company_name = name
                 result.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 scraped_results[result.url] = result
                 logger.info(scraped_results[result.url])
+
         except NoJobsFoundError:
             logger.warning(f"No jobs found while scraping {name}")
-            status = STATUS_QUESTIONABLE
+            status = ScrapeStatus.QUESTIONABLE
+
         except Exception:
             logger.error(f"Error scraping {name}", exc_info=True)
-            status = STATUS_DOWN
+            status = ScrapeStatus.DOWN
             error = traceback.format_exc()
 
         status_results.append(
@@ -123,7 +129,7 @@ def run_scrapers(
     return scraped_results, status_results
 
 
-def update_status(
+def update_scraper_status(
     sheet_manager: SheetManager, status_results: List[StatusResult]
 ) -> None:
     """
@@ -133,40 +139,104 @@ def update_status(
     if len(status_results) == 0:
         return
 
+    logger.info("Syncing scrape status results to spreadsheet")
+
     name_column = STATUS_DATA_MAP["Name"]
-    existing = sheet_manager.read_sheet(STATUS_RANGE)
-    status_by_name = {row[name_column]: row for row in existing if row}
+    existing_data = sheet_manager.read_sheet(STATUS_RANGE)
+    status_by_name = {row[name_column]: row for row in existing_data if row}
 
     for result in status_results:
+        existing_row = status_by_name.get(result.company_name)
+        previous_status = existing_row[STATUS_DATA_MAP["Status"]] if existing_row else None
+        previous_pHash = existing_row[STATUS_DATA_MAP["pHash"]] if existing_row else "0"
+        screenshot_path = Path(f"tmp/{result.company_name}.png")
+
+        if result.status != ScrapeStatus.QUESTIONABLE:
+            """
+            If new result is OPERATIONAL or DOWN, we don't need to do anything further
+            """
+            if (
+                result.status == ScrapeStatus.DOWN
+                and previous_status == ScrapeStatus.DOWN.value
+            ):
+                # If the scraper is newly down, we notify the user
+                # Otherwise, we don't need to
+                result.error = None
+
+        elif previous_status in (
+            ScrapeStatus.DOWN.value,
+            ScrapeStatus.QUESTIONABLE.value,
+        ):
+            """
+            Scraper is QUESTIONABLE and it was previously DOWN (pHash differed too much) or QUESTIONABLE
+            Propagate the previous status forwards
+            """
+            result.status = ScrapeStatus(previous_status)
+
+        elif (
+            previous_status == ScrapeStatus.CONFIDENT.value
+            and screenshot_path.exists()
+        ):
+            """
+            Scraper is QUESTIONABLE and it was previously CONFIDENT (user looked at the portal and was confident it still worked)
+            Calculate the pHash and compare it with the old one
+            """
+            logger.info("Calculating pHash to check portal changes")
+            new_hash = calculate_pHash(str(screenshot_path))
+            if previous_pHash == "0":
+                # A human just marked this Confident: capture the baseline.
+                result.status = ScrapeStatus.CONFIDENT
+                result.pHash = str(new_hash)
+            elif imagehash.hex_to_hash(previous_pHash) - new_hash <= P_HASH_THRESHOLD:
+                result.status = ScrapeStatus.CONFIDENT
+                result.pHash = previous_pHash
+            else:
+                # Portal changed materially: drop trust, reset for re-verify, notify.
+                result.status = ScrapeStatus.DOWN
+                result.error = "Warning: the empty portal changed beyond the pHash threshold. Please re-verify and mark it Confident, or fix the scraper."
+
+        elif previous_status == ScrapeStatus.CONFIDENT.value:
+            """
+            Scraper is QUESTIONABLE and previously CONFIDENT but we don't have a screenshot of it (not set up yet)
+            Set as QUESTIONABLE
+            """
+            result.status = ScrapeStatus.QUESTIONABLE
+            result.pHash = previous_pHash
+            result.error = "Warning: the scraper found 0 jobs and no empty portal selector was set. Please verify the portal and remedy this."
+            
+        else:
+            """
+            There was no previous status. This scraper is new
+            """
+            result.error = "Warning: scraper is now finding 0 jobs. Please verify the portal and mark it Confident."
+
         status_by_name[result.company_name] = [
             result.company_name,
             result.portal_url,
-            result.status,
+            result.status.value,
             result.last_updated,
             result.scrape_time,
             result.request_size,
+            result.pHash,
         ]
 
-    # Sort by name so rows stay in a stable order between runs
+    shutil.rmtree("tmp", ignore_errors=True)
+
     status_rows = [status_by_name[name] for name in sorted(status_by_name)]
 
-    logger.info(f"Updating status for {len(status_results)} integrations")
+    logger.info(f"Updating status for {len(status_results)} integration(s)")
     sheet_manager.update_spreadsheet(status_rows, STATUS_RANGE)
 
 
-def scrape_internships(company_queue: List[str]):
+def update_scraper_results(
+    sheet_manager: SheetManager, company_queue: List[str], scraped_results: Dict[ScrapeResult]
+) -> None:
     """
-    Scrape the internships, update the spreadsheet store and send the updates to Discord
+    Write the results of the scraping run to the spreadsheet
+    Ensures that the data is consistent
     """
-    logger.info("Starting scraping process")
+    logger.info("Syncing scrape results to spreadsheet")
 
-    with sync_playwright() as playwright:
-        scraped_results, status_results = run_scrapers(playwright, company_queue)
-
-    logger.info("Syncing scrape results to spreadsheet data")
-
-    sheet_manager = SheetManager()
-    sheet_manager.start()
     data = sheet_manager.read_sheet(INTERNSHIP_RANGE)
 
     # Reconcile stored data with scraped data
@@ -178,10 +248,12 @@ def scrape_internships(company_queue: List[str]):
 
         if company_name not in company_queue or status == "Expired":
             continue
+
         elif url not in scraped_results:
             # If the job was not found in the most recent scrape, it probably isn't active
             row[DATA_MAP["Status"]] = "Expired"
             is_dirty = True
+
         else:
             # Get rid of jobs we've already found
             del scraped_results[url]
@@ -203,9 +275,11 @@ def scrape_internships(company_queue: List[str]):
     if len(spreadsheet_updates) > 0 or is_dirty:
         sheet_manager.update_spreadsheet(spreadsheet_updates + data, INTERNSHIP_RANGE)
 
-    # Aggregate and update scraper health regardless of whether new jobs were found
-    update_status(sheet_manager, status_results)
 
+def send_discord_notifications(status_results: List[StatusResult], scraped_results: Dict[ScrapeResult]):
+    """
+    Sends all the discord notifications including both error and results found
+    """
     # Send scraper errors to the discord error webhook. One at a time to honour embed length limits
     error_messages = [
         {
@@ -220,10 +294,11 @@ def scrape_internships(company_queue: List[str]):
     if len(error_messages) > 0:
         logger.info("Attempting to send scraper error reports to Discord")
 
-    for message in error_messages:
-        send_discord_update(WebhookType.ERRORS, [message])
+        for message in error_messages:
+            send_discord_update(WebhookType.ERRORS, [message])
 
-    if len(spreadsheet_updates) == 0:
+    # update_scraper_results should have already purged redundant scraped_results
+    if len(scraped_results) == 0:
         return
 
     logger.info("Attempting to send internship job announcements on Discord")
@@ -240,16 +315,43 @@ def scrape_internships(company_queue: List[str]):
 
     send_discord_batch_update(WebhookType.ANNOUNCEMENTS, discord_messages)
 
+
+def scrape_internships(company_queue: List[str], debug=False):
+    """
+    Scrape the internships, update the spreadsheet store and send the updates to Discord
+    """
+    logger.info("Starting scraping process")
+
+    with sync_playwright() as playwright:
+        scraped_results, status_results = run_scrapers(playwright, company_queue)
+
+    sheet_manager = SheetManager()
+    sheet_manager.start()
+
+    # Update scraped results on the spreadsheet as well as if the entries are still valid
+    update_scraper_results(sheet_manager, company_queue, scraped_results)
+
+    # Aggregate and update scraper health regardless of whether new jobs were found
+    update_scraper_status(sheet_manager, status_results)
+
+    if not debug:
+        # Send discord notifications
+        send_discord_notifications(status_results, scraped_results)
+
     logger.info("Finished scraping internships!")
 
 
 def main():
+    debug_mode = False
     company_names = argv[1:]
+    if '-T' in company_names:
+        company_names.remove('-T')
+        debug_mode = True
     if len(company_names) == 0:
         company_names = get_company_directory()
         logger.info(f"Found {len(company_names)} companies in directory")
     shuffle(company_names)
-    scrape_internships(company_names)
+    scrape_internships(company_names, debug_mode)
     trim_logs()
 
 
