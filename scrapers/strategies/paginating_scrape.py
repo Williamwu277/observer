@@ -9,7 +9,7 @@ from models import ScrapeConfig, ScrapeResult
 
 
 logger = logging.getLogger(__name__)
-MAX_PAGES = 5
+MAX_PAGES = 10
 
 
 @dataclass

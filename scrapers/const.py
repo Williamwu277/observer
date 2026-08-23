@@ -17,6 +17,7 @@ LOCATION_WHITELIST = [
     "canada",
     "sunnyvale",
     "mountain view",
+    "santa clara"
 ]
 
 LOCATION_BLACKLIST = ["london", "united kingdom"]
