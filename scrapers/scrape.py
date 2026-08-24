@@ -39,19 +39,25 @@ from scraping_framework import scrape_integration
 from models import NoJobsFoundError, ScrapeResult, ScrapeStatus, StatusResult
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(asctime)s] (%(levelname)s) %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(
-            f"logs/scrape_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
-        ),
-    ],
-)
-
 logger = logging.getLogger(__name__)
+
+
+def configure_logging() -> None:
+    """Configure console and file logging for a scraper run."""
+    log_directory = Path("logs")
+    log_directory.mkdir(parents=True, exist_ok=True)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(asctime)s] (%(levelname)s) %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(
+                log_directory / f"scrape_{datetime.now():%Y-%m-%d_%H-%M-%S}.log"
+            ),
+        ],
+    )
 
 
 def run_scrapers(
@@ -80,7 +86,7 @@ def run_scrapers(
         # Measure the data a residential proxy would transfer for this scrape
         get_transferred_bytes = attach_network_monitor(context.new_cdp_session(page))
 
-        logger.info(f"Now scraping: {name}")
+        logger.info("Now scraping: %s", name)
 
         status = ScrapeStatus.OPERATIONAL
         portal_url = ""
@@ -93,17 +99,17 @@ def run_scrapers(
             results = scrape_integration(integration.config, integration.strategy, page)
             for result in results:
                 if result.url in scraped_results:
-                    logger.warning(f"Duplicate URL found: {result.url}")
+                    logger.warning("Duplicate URL found: %s", result.url)
                 result.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 scraped_results[result.url] = result
                 logger.info(scraped_results[result.url])
 
         except NoJobsFoundError:
-            logger.warning(f"No jobs found while scraping {name}")
+            logger.warning("No jobs found while scraping %s", name)
             status = ScrapeStatus.QUESTIONABLE
 
         except Exception:
-            logger.error(f"Error scraping {name}", exc_info=True)
+            logger.error("Error scraping %s", name, exc_info=True)
             status = ScrapeStatus.DOWN
             error = traceback.format_exc()
 
@@ -120,7 +126,7 @@ def run_scrapers(
         )
 
         context.close()
-        logger.info(f"Finished scraping: {name}")
+        logger.info("Finished scraping: %s", name)
 
         if i < len(scraper_names) - 1:
             sleep(uniform(2, 10))
@@ -224,7 +230,7 @@ def update_scraper_status(
 
     status_rows = [status_by_name[name] for name in sorted(status_by_name)]
 
-    logger.info(f"Updating status for {len(status_results)} integration(s)")
+    logger.info("Updating status for %s integration(s)", len(status_results))
     sheet_manager.update_spreadsheet(status_rows, STATUS_RANGE)
 
 
@@ -270,7 +276,9 @@ def update_scraper_results(
         for url in scraped_results
     ]
 
-    logger.info(f"Found a total of {len(spreadsheet_updates)} new jobs to update!")
+    logger.info(
+        "Found a total of %s new jobs to update!", len(spreadsheet_updates)
+    )
 
     if len(spreadsheet_updates) > 0 or is_dirty:
         sheet_manager.update_spreadsheet(spreadsheet_updates + data, INTERNSHIP_RANGE)
@@ -342,6 +350,8 @@ def scrape_internships(company_queue: List[str], debug=False):
 
 
 def main():
+    configure_logging()
+
     debug_mode = False
     company_names = argv[1:]
     if '-T' in company_names:
@@ -349,7 +359,7 @@ def main():
         debug_mode = True
     if len(company_names) == 0:
         company_names = get_company_directory()
-        logger.info(f"Found {len(company_names)} companies in directory")
+        logger.info("Found %s companies in directory", len(company_names))
     shuffle(company_names)
     scrape_internships(company_names, debug_mode)
     trim_logs()

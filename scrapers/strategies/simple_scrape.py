@@ -34,7 +34,7 @@ def simple_scrape(
 
     # Click on proper section if necessary e.g. Ramp
     if config.section_click_name:
-        logger.info(f"Clicking on section: {config.section_click_name}")
+        logger.info("Clicking on section: %s", config.section_click_name)
         page.get_by_role("button", name=config.section_click_name).click()
 
     # If not all jobs are shown at once, repeatedly click on more
@@ -43,7 +43,7 @@ def simple_scrape(
         for page_number in range(MAX_MORE_JOBS_CLICKS):
             if more_jobs_element.count() == 0 or not more_jobs_element.is_enabled():
                 break
-            logger.info(f"Clicking on more jobs button {page_number + 1}")
+            logger.info("Clicking on more jobs button %s", page_number + 1)
             more_jobs_element.click()
             page.wait_for_timeout(uniform(3000, 5000))
 
@@ -55,7 +55,7 @@ def simple_scrape(
         )
         jobs_list = page.locator(config.jobs_selector).all()
     except TimeoutError:
-        logger.info(f"No jobs matched the selector for {config.company_name}")
+        logger.warning("No jobs matched the selector for %s", config.company_name)
         return {"jobs": []}
 
     results = []
@@ -81,6 +81,6 @@ def simple_scrape(
             )
         )
 
-    logger.info(f"Found {len(results)} jobs")
+    logger.info("Found %s jobs", len(results))
 
     return {"jobs": results}
