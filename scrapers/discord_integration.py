@@ -77,7 +77,9 @@ def send_discord_update(
 
         if response.status_code != 204:
             logger.error(
-                f"Failed to send Discord message: {response.status_code} {response.text}"
+                "Failed to send Discord message: %s %s",
+                response.status_code,
+                response.text,
             )
             return False
 

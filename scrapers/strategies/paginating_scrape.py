@@ -67,7 +67,9 @@ def paginating_scrape(
                 )
             )
 
-        logger.info(f"Found {len(current_page_jobs)} jobs on page {page_number + 1}")
+        logger.info(
+            "Found %s jobs on page %s", len(current_page_jobs), page_number + 1
+        )
 
         # Ensure the selector already makes sure the button is clickable
         next_page_element = page.locator(config.next_page_selector)
@@ -79,6 +81,6 @@ def paginating_scrape(
         # Pray the website loaded the next page
         page.wait_for_timeout(uniform(3000, 5000))
 
-    logger.info(f"Found {len(jobs_list)} jobs total")
+    logger.info("Found %s jobs total", len(jobs_list))
 
     return {"jobs": jobs_list}

@@ -38,10 +38,10 @@ def scrape_integration(
 
     for state in states:
         # Don't try/except here because we want to catch in scrape.py
-        logger.info(f"Starting state: [{state['state'].value}]")
+        logger.info("Starting state: [%s]", state["state"].value)
         result = state["action"](**scrape_context)
         scrape_context = {"config": config, "page": page, **result}
-        logger.info(f"Finished state: [{state['state'].value}]")
+        logger.info("Finished state: [%s]", state["state"].value)
 
     return scrape_context["jobs"]
 
@@ -50,7 +50,7 @@ def navigate_to_portal(config: ScrapeConfig, page: Page) -> dict:
     """
     Navigate to the portal
     """
-    logger.info(f"Navigating to: {config.base_url}")
+    logger.info("Navigating to: %s", config.base_url)
     page.goto(config.base_url, referer="https://www.google.com/")
     page.wait_for_timeout(uniform(1000, 3000))
 
@@ -73,7 +73,9 @@ def post_scrape_action(
     if config.empty_portal_selector is None:
         raise NoJobsFoundError(f"No jobs found for {config.company_name}")
 
-    logger.info(f"Taking a screenshot of {config.company_name} portal to check for changes")
+    logger.info(
+        "Taking a screenshot of %s portal to check for changes", config.company_name
+    )
 
     page.wait_for_timeout(uniform(500, 1000))
 
@@ -95,5 +97,5 @@ def filter_jobs(jobs: List[ScrapeResult], **_: Any) -> dict[str, List[ScrapeResu
     }
     """
     filtered_jobs = list(filter(lambda job: filter_job(job), jobs))
-    logger.info(f"Found {len(filtered_jobs)} jobs after filtering")
+    logger.info("Found %s jobs after filtering", len(filtered_jobs))
     return {"jobs": list(filtered_jobs)}

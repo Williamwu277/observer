@@ -9,9 +9,6 @@ RUN pip install --no-cache-dir -r requirements.txt \
 # Copy scraper source code
 COPY scrapers/ scrapers/
 
-# Create logs directory
-RUN mkdir -p scrapers/logs
-
 WORKDIR /app/scrapers
 
 # credentials.json is expected at /app/credentials.json (one level up from scrapers/)
