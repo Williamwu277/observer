@@ -32,11 +32,13 @@ from sheet_manager import SheetManager
 from discord_integration import (
     WebhookType,
     send_discord_batch_update,
+    send_discord_summary,
     send_discord_update,
     MAX_EMBED_DESCRIPTION_LENGTH,
 )
 from scraping_framework import scrape_integration
 from models import NoJobsFoundError, ScrapeResult, ScrapeStatus, StatusResult
+from run_summary import build_run_summary
 
 
 logger = logging.getLogger(__name__)
@@ -235,18 +237,20 @@ def update_scraper_status(
 
 
 def update_scraper_results(
-    sheet_manager: SheetManager, company_queue: List[str], scraped_results: Dict[ScrapeResult]
-) -> None:
+    sheet_manager: SheetManager,
+    company_queue: List[str],
+    scraped_results: Dict[str, ScrapeResult],
+) -> int:
     """
     Write the results of the scraping run to the spreadsheet
-    Ensures that the data is consistent
+    Ensures that the data is consistent and returns the number of listings expired.
     """
     logger.info("Syncing scrape results to spreadsheet")
 
     data = sheet_manager.read_sheet(INTERNSHIP_RANGE)
 
     # Reconcile stored data with scraped data
-    is_dirty = False
+    expired_listings = 0
     for row in data:
         status = row[DATA_MAP["Status"]]
         url = row[DATA_MAP["Url"]]
@@ -258,7 +262,7 @@ def update_scraper_results(
         elif url not in scraped_results:
             # If the job was not found in the most recent scrape, it probably isn't active
             row[DATA_MAP["Status"]] = "Expired"
-            is_dirty = True
+            expired_listings += 1
 
         else:
             # Get rid of jobs we've already found
@@ -280,13 +284,17 @@ def update_scraper_results(
         "Found a total of %s new jobs to update!", len(spreadsheet_updates)
     )
 
-    if len(spreadsheet_updates) > 0 or is_dirty:
+    if len(spreadsheet_updates) > 0 or expired_listings > 0:
         sheet_manager.update_spreadsheet(spreadsheet_updates + data, INTERNSHIP_RANGE)
 
+    return expired_listings
 
-def send_discord_notifications(status_results: List[StatusResult], scraped_results: Dict[ScrapeResult]):
+
+def send_discord_notifications(
+    status_results: List[StatusResult], scraped_results: Dict[str, ScrapeResult]
+) -> Tuple[int, int]:
     """
-    Sends all the discord notifications including both error and results found
+    Sends all Discord notifications and returns attempted and successful group counts.
     """
     # Send scraper errors to the discord error webhook. One at a time to honour embed length limits
     error_messages = [
@@ -299,15 +307,20 @@ def send_discord_notifications(status_results: List[StatusResult], scraped_resul
         if status_result.error
     ]
 
+    attempts = 0
+    successes = 0
+
     if len(error_messages) > 0:
         logger.info("Attempting to send scraper error reports to Discord")
 
         for message in error_messages:
-            send_discord_update(WebhookType.ERRORS, [message])
+            attempts += 1
+            if send_discord_update(WebhookType.ERRORS, [message]):
+                successes += 1
 
     # update_scraper_results should have already purged redundant scraped_results
     if len(scraped_results) == 0:
-        return
+        return attempts, successes
 
     logger.info("Attempting to send internship job announcements on Discord")
 
@@ -321,32 +334,58 @@ def send_discord_notifications(status_results: List[StatusResult], scraped_resul
         for url in scraped_results
     ]
 
-    send_discord_batch_update(WebhookType.ANNOUNCEMENTS, discord_messages)
+    attempts += 1
+    if send_discord_batch_update(WebhookType.ANNOUNCEMENTS, discord_messages):
+        successes += 1
+    return attempts, successes
 
 
 def scrape_internships(company_queue: List[str], debug=False):
     """
     Scrape the internships, update the spreadsheet store and send the updates to Discord
     """
+    run_start_time = perf_counter()
     logger.info("Starting scraping process")
 
     with sync_playwright() as playwright:
         scraped_results, status_results = run_scrapers(playwright, company_queue)
 
+    total_listings = len(scraped_results)
     sheet_manager = SheetManager()
     sheet_manager.start()
 
     # Update scraped results on the spreadsheet as well as if the entries are still valid
-    update_scraper_results(sheet_manager, company_queue, scraped_results)
+    expired_listings = update_scraper_results(
+        sheet_manager, company_queue, scraped_results
+    )
 
     # Aggregate and update scraper health regardless of whether new jobs were found
     update_scraper_status(sheet_manager, status_results)
 
+    notification_attempts = 0
+    notification_successes = 0
     if not debug:
         # Send discord notifications
-        send_discord_notifications(status_results, scraped_results)
+        notification_attempts, notification_successes = send_discord_notifications(
+            status_results, scraped_results
+        )
 
-    logger.info("Finished scraping internships!")
+    summary = build_run_summary(
+        status_results=status_results,
+        total_listings=total_listings,
+        new_listings=list(scraped_results.values()),
+        expired_listings=expired_listings,
+        elapsed_seconds=perf_counter() - run_start_time,
+        notification_attempts=notification_attempts,
+        notification_successes=notification_successes,
+        notifications_skipped=debug,
+    )
+    logger.info("Scrape run summary:\n%s", summary)
+
+    if not debug:
+        summary_sent = send_discord_summary(summary)
+        if summary_sent:
+            logger.info("Run summary sent to Discord")
 
 
 def main():
