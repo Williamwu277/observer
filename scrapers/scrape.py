@@ -271,6 +271,7 @@ def update_scraper_results(
     """
     logger.info("Syncing scrape results to spreadsheet")
 
+    # Temporary compatibility migration; remove with the SheetManager method.
     sheet_manager.ensure_job_location_column(INTERNSHIP_SHEET)
     data = sheet_manager.read_sheet(INTERNSHIP_RANGE)
 

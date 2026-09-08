@@ -54,6 +54,9 @@ class SheetManager:
             body={"values": rows},
         ).execute()
 
+    # TODO: Remove this legacy five-column migration and its migration-specific
+    # tests after all deployed sheets are confirmed migrated; retain validation
+    # of the six-column layout.
     def ensure_job_location_column(self, sheet_name: str) -> bool:
         """Ensure the jobs sheet uses the six-column layout with Location in E."""
         header_rows = self.read_sheet(f"{sheet_name}!A1:F1")
@@ -94,9 +97,6 @@ class SheetManager:
         if worksheet is None:
             raise ValueError(f"Could not find worksheet named {sheet_name}")
 
-        # TODO: Remove this legacy five-column migration and its migration-specific
-        # tests after all deployed sheets are confirmed migrated; retain validation
-        # of the six-column layout.
         self.sheet.batchUpdate(
             spreadsheetId=SPREADSHEET_ID,
             body={
