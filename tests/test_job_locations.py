@@ -9,7 +9,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scrapers"))
 from discord_integration import WebhookType
 from models import ScrapeResult
 from run_summary import build_run_summary
-from scrape import send_discord_notifications, update_scraper_results
+from scrape import (
+    send_discord_notifications,
+    store_scrape_result,
+    update_scraper_results,
+)
 from sheet_manager import SheetManager
 
 
@@ -72,6 +76,58 @@ class SheetMigrationTests(unittest.TestCase):
 
 
 class JobOutputTests(unittest.TestCase):
+    def test_duplicate_urls_merge_unique_locations_in_scrape_order(self):
+        results = {}
+        locations_by_url = {}
+        locations = [
+            None,
+            " New\nYork ",
+            "Seattle",
+            "new york",
+            "South San Francisco HQ",
+        ]
+
+        for location in locations:
+            store_scrape_result(
+                results,
+                locations_by_url,
+                ScrapeResult("stripe", "shared", "Software Engineer Intern", location),
+            )
+
+        self.assertEqual(list(results), ["shared"])
+        self.assertEqual(
+            results["shared"].location,
+            "New York; Seattle; South San Francisco HQ",
+        )
+
+    @patch("scrape.send_discord_batch_update", return_value=True)
+    def test_merged_locations_create_one_sheet_row_and_announcement(self, send_batch):
+        results = {}
+        locations_by_url = {}
+        for location in ["New York", "Seattle", "South San Francisco HQ"]:
+            store_scrape_result(
+                results,
+                locations_by_url,
+                ScrapeResult("stripe", "shared", "Software Engineer Intern", location),
+            )
+
+        manager = FakeSheetManager([])
+        update_scraper_results(manager, ["stripe"], results)
+        send_discord_notifications([], results)
+
+        self.assertEqual(len(manager.updates[0][0]), 1)
+        self.assertEqual(
+            manager.updates[0][0][0][4],
+            "New York; Seattle; South San Francisco HQ",
+        )
+        messages = send_batch.call_args.args[1]
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(
+            messages[0]["description"],
+            "Software Engineer Intern\n"
+            "Location: New York; Seattle; South San Francisco HQ",
+        )
+
     def test_new_rows_and_existing_location_backfills_use_six_columns(self):
         rows = [
             ["old date", "acme", "Existing Intern", "existing", "", "Active"],

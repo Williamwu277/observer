@@ -50,6 +50,25 @@ def normalize_location(location: str | None) -> str:
     return " ".join((location or "").split())
 
 
+def store_scrape_result(
+    scraped_results: Dict[str, ScrapeResult],
+    locations_by_url: Dict[str, List[str]],
+    result: ScrapeResult,
+) -> None:
+    """Store a result by URL while retaining every unique scraped location."""
+    location = normalize_location(result.location)
+    locations = locations_by_url.setdefault(result.url, [])
+    known_locations = {value.casefold() for value in locations}
+    if location and location.casefold() not in known_locations:
+        locations.append(location)
+
+    if result.url in scraped_results:
+        logger.warning("Duplicate URL found; merging locations: %s", result.url)
+
+    result.location = "; ".join(locations) or None
+    scraped_results[result.url] = result
+
+
 def configure_logging() -> None:
     """Configure console and file logging for a scraper run."""
     log_directory = Path("logs")
@@ -81,6 +100,7 @@ def run_scrapers(
     )
 
     scraped_results = {}
+    locations_by_url = {}
     status_results = []
 
     for i, name in enumerate(scraper_names):
@@ -106,10 +126,8 @@ def run_scrapers(
             portal_url = integration.config.base_url
             results = scrape_integration(integration.config, integration.strategy, page)
             for result in results:
-                if result.url in scraped_results:
-                    logger.warning("Duplicate URL found: %s", result.url)
                 result.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                scraped_results[result.url] = result
+                store_scrape_result(scraped_results, locations_by_url, result)
                 logger.info(scraped_results[result.url])
 
         except NoJobsFoundError:
