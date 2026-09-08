@@ -14,7 +14,7 @@ You can see the spreadsheet of internships as well as the entire directory [here
 
 1. Grab a service account from GCP (with google sheets enabled) and edit the `SERVICE_ACCOUNT_FILE` variable in `const.py` to point to the credentials file
 2. Create a spreadsheet, share it with your service account, and then create an `.env` file with `SPREADSHEET_ID`
-3. Edit the spreadsheet with a table to look like the sample (or edit the constants)'
+3. Edit the spreadsheet with a jobs table using these columns: `Date Scraped | Company | Title | Url | Location | Status`. Existing five-column sheets are migrated automatically on the next run.
 4. Add the Discord webhooks `ANNOUNCEMENTS_WEBHOOK_URL` and `ERRORS_WEBHOOK_URL` to your `.env` file for notifications. You can also add `SUMMARY_WEBHOOK_URL` to post the end-of-run summary to a separate channel.
 5. Create a virtual python environment and pip install the `requirements.txt`
 6. Run `playwright install` in the virtual environment
@@ -106,6 +106,7 @@ We also run it on a residential IP just once a day. However, this is nowhere nea
 
 ## Todo
 
+- [ ] Remove the legacy five-column migration and its migration-specific tests after all deployed sheets are confirmed migrated; retain validation of the six-column layout
 - [ ] Extend company directory 
 - [ ] Add proxies to protect IP
 - [ ] Concurrently scrape

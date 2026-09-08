@@ -51,10 +51,18 @@ VIEWPORT = {"width": 1920, "height": 1080}
 
 SERVICE_ACCOUNT_FILE = "../credentials.json"
 
-INTERNSHIP_RANGE = "2026!A2:E"
+INTERNSHIP_SHEET = "2026"
+INTERNSHIP_RANGE = f"{INTERNSHIP_SHEET}!A2:F"
 STATUS_RANGE = "Status!A3:G"
 
-DATA_MAP = {"Date Scraped": 0, "Company": 1, "Title": 2, "Url": 3, "Status": 4}
+DATA_MAP = {
+    "Date Scraped": 0,
+    "Company": 1,
+    "Title": 2,
+    "Url": 3,
+    "Location": 4,
+    "Status": 5,
+}
 STATUS_DATA_MAP = {
     "Name": 0,
     "Portal": 1,

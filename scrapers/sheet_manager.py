@@ -53,3 +53,90 @@ class SheetManager:
             valueInputOption="USER_ENTERED",
             body={"values": rows},
         ).execute()
+
+    def ensure_job_location_column(self, sheet_name: str) -> bool:
+        """Ensure the jobs sheet uses the six-column layout with Location in E."""
+        header_rows = self.read_sheet(f"{sheet_name}!A1:F1")
+        header = header_rows[0] if header_rows else []
+        normalized_header = [str(value).strip().lower() for value in header]
+        old_header = ["date scraped", "company", "title", "url", "status"]
+        new_header = [
+            "date scraped",
+            "company",
+            "title",
+            "url",
+            "location",
+            "status",
+        ]
+
+        if normalized_header == new_header:
+            return False
+
+        if normalized_header != old_header:
+            raise ValueError(
+                f"Unexpected header layout in {sheet_name}: {header}. "
+                "Expected Date Scraped, Company, Title, Url, Status or "
+                "Date Scraped, Company, Title, Url, Location, Status."
+            )
+
+        metadata = self.sheet.get(
+            spreadsheetId=SPREADSHEET_ID,
+            fields="sheets.properties(sheetId,title)",
+        ).execute()
+        worksheet = next(
+            (
+                item["properties"]
+                for item in metadata.get("sheets", [])
+                if item.get("properties", {}).get("title") == sheet_name
+            ),
+            None,
+        )
+        if worksheet is None:
+            raise ValueError(f"Could not find worksheet named {sheet_name}")
+
+        # TODO: Remove this legacy five-column migration and its migration-specific
+        # tests after all deployed sheets are confirmed migrated; retain validation
+        # of the six-column layout.
+        self.sheet.batchUpdate(
+            spreadsheetId=SPREADSHEET_ID,
+            body={
+                "requests": [
+                    {
+                        "insertDimension": {
+                            "range": {
+                                "sheetId": worksheet["sheetId"],
+                                "dimension": "COLUMNS",
+                                "startIndex": 4,
+                                "endIndex": 5,
+                            },
+                            "inheritFromBefore": True,
+                        }
+                    },
+                    {
+                        "updateCells": {
+                            "range": {
+                                "sheetId": worksheet["sheetId"],
+                                "startRowIndex": 0,
+                                "endRowIndex": 1,
+                                "startColumnIndex": 4,
+                                "endColumnIndex": 5,
+                            },
+                            "rows": [
+                                {
+                                    "values": [
+                                        {
+                                            "userEnteredValue": {
+                                                "stringValue": "Location"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ],
+                            "fields": "userEnteredValue",
+                        }
+                    },
+                ]
+            },
+        ).execute()
+        logger.info("Migrated %s to the six-column job layout", sheet_name)
+        return True
