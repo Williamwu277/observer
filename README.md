@@ -1,5 +1,9 @@
 # Observer
 
+<p align="center">
+  <img src="assets/ObserverLogo.png" alt="Observer logo" width="600">
+</p>
+
 Internship scraper.
 
 You can see the spreadsheet of internships as well as the entire directory [here](https://docs.google.com/spreadsheets/d/1uaIL-RzYQ-UVAvO1WBw-80VvS5ZJsFJDfAyMEDXLtJ4/edit?gid=0#gid=0&fvid=1229650299). 
