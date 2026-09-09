@@ -17,6 +17,7 @@ from const import (
     USER_AGENTS,
     DATA_MAP,
     VIEWPORT,
+    INTERNSHIP_SHEET,
     INTERNSHIP_RANGE,
     STATUS_RANGE,
     STATUS_DATA_MAP,
@@ -42,6 +43,30 @@ from run_summary import build_run_summary
 
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_location(location: str | None) -> str:
+    """Normalize scraped location text for user-facing outputs."""
+    return " ".join((location or "").split())
+
+
+def store_scrape_result(
+    scraped_results: Dict[str, ScrapeResult],
+    locations_by_url: Dict[str, List[str]],
+    result: ScrapeResult,
+) -> None:
+    """Store a result by URL while retaining every unique scraped location."""
+    location = normalize_location(result.location)
+    locations = locations_by_url.setdefault(result.url, [])
+    known_locations = {value.casefold() for value in locations}
+    if location and location.casefold() not in known_locations:
+        locations.append(location)
+
+    if result.url in scraped_results:
+        logger.warning("Duplicate URL found; merging locations: %s", result.url)
+
+    result.location = "; ".join(locations) or None
+    scraped_results[result.url] = result
 
 
 def configure_logging() -> None:
@@ -75,6 +100,7 @@ def run_scrapers(
     )
 
     scraped_results = {}
+    locations_by_url = {}
     status_results = []
 
     for i, name in enumerate(scraper_names):
@@ -100,10 +126,8 @@ def run_scrapers(
             portal_url = integration.config.base_url
             results = scrape_integration(integration.config, integration.strategy, page)
             for result in results:
-                if result.url in scraped_results:
-                    logger.warning("Duplicate URL found: %s", result.url)
                 result.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                scraped_results[result.url] = result
+                store_scrape_result(scraped_results, locations_by_url, result)
                 logger.info(scraped_results[result.url])
 
         except NoJobsFoundError:
@@ -247,10 +271,13 @@ def update_scraper_results(
     """
     logger.info("Syncing scrape results to spreadsheet")
 
+    # Temporary compatibility migration; remove with the SheetManager method.
+    sheet_manager.ensure_job_location_column(INTERNSHIP_SHEET)
     data = sheet_manager.read_sheet(INTERNSHIP_RANGE)
 
     # Reconcile stored data with scraped data
     expired_listings = 0
+    updated_locations = 0
     for row in data:
         status = row[DATA_MAP["Status"]]
         url = row[DATA_MAP["Url"]]
@@ -265,6 +292,10 @@ def update_scraper_results(
             expired_listings += 1
 
         else:
+            location = normalize_location(scraped_results[url].location)
+            if location and row[DATA_MAP["Location"]] != location:
+                row[DATA_MAP["Location"]] = location
+                updated_locations += 1
             # Get rid of jobs we've already found
             del scraped_results[url]
 
@@ -275,6 +306,7 @@ def update_scraper_results(
             scraped_results[url].company_name,
             scraped_results[url].title,
             scraped_results[url].url,
+            normalize_location(scraped_results[url].location),
             "Active",
         ]
         for url in scraped_results
@@ -283,8 +315,9 @@ def update_scraper_results(
     logger.info(
         "Found a total of %s new jobs to update!", len(spreadsheet_updates)
     )
+    logger.info("Updated locations for %s existing jobs", updated_locations)
 
-    if len(spreadsheet_updates) > 0 or expired_listings > 0:
+    if len(spreadsheet_updates) > 0 or expired_listings > 0 or updated_locations > 0:
         sheet_manager.update_spreadsheet(spreadsheet_updates + data, INTERNSHIP_RANGE)
 
     return expired_listings
@@ -325,14 +358,19 @@ def send_discord_notifications(
     logger.info("Attempting to send internship job announcements on Discord")
 
     # Turn the data into a Discord friendly format
-    discord_messages = [
-        {
-            "title": scraped_results[url].company_name,
-            "url": scraped_results[url].url,
-            "description": scraped_results[url].title,
-        }
-        for url in scraped_results
-    ]
+    discord_messages = []
+    for result in scraped_results.values():
+        description = result.title
+        location = normalize_location(result.location)
+        if location:
+            description += f"\nLocation: {location}"
+        discord_messages.append(
+            {
+                "title": result.company_name,
+                "url": result.url,
+                "description": description[:MAX_EMBED_DESCRIPTION_LENGTH],
+            }
+        )
 
     attempts += 1
     if send_discord_batch_update(WebhookType.ANNOUNCEMENTS, discord_messages):
