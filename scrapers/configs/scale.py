@@ -7,6 +7,7 @@ config = SimpleScrapeConfig(
     jobs_selector="div#department-university a",
     url_selector=":scope",
     title_selector="> span",
+    location_selector="> div span",
     link_augmentation=lambda url: "https://scale.com" + url
 )
 
