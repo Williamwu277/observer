@@ -4,7 +4,7 @@
   <img src="assets/ObserverLogo.png" alt="Observer logo" width="600">
 </p>
 
-Internship scraper.
+Observer is a reliability-focused internship discovery service. It checks public careers pages once per day, filters for relevant software engineering internships in the U.S. and Canada, and publishes new opportunities to Google Sheets and Discord. A reusable scraping framework, integration health tracking, and automated page-change detection keep the directory useful as careers sites evolve.
 
 You can see the spreadsheet of internships as well as the entire directory [here](https://docs.google.com/spreadsheets/d/1uaIL-RzYQ-UVAvO1WBw-80VvS5ZJsFJDfAyMEDXLtJ4/edit?gid=0#gid=0&fvid=1229650299). 
 
@@ -37,7 +37,7 @@ Details of each run will be stored within `/logs` in case you need to debug
 - [Scraping Careers Sites](#2-scraping-careers-sites)
 - [Scraper Statuses](#3-scraper-statuses)
 - [Automated Change Detection](#4-automated-change-detection)
-- [Bot Detection](#5-bot-detection)
+- [Responsible Scraping](#5-responsible-scraping)
 
 #### 1. The Scraping Framework
 
@@ -98,21 +98,17 @@ On a day-to-day basis, when a run yields no results, the integration is set to `
 
 Why this strategy in particular? The main idea is that we want to be as sure as possible that we aren't missing anything without having to check daily. We've accepted the odds for false positive notifications of the portal breaking; however, the worst case scenario that we prevent (as much as we can) is when it says a scraper is operational but in reality isn't. Additionally, consider this scenario (which happened). The Uber careers page changed formats. However, the link in the config still yields a valid page. The page displays no jobs since the queries in the link point to invalid sources. I believe this screenshot strategy will notice the portal change, while other strategies are less likely to.
 
-#### 5. Bot Detection
+#### 5. Responsible Scraping
 
-Web scraping is a cat and mouse game between anti-bot detection and also the stealth functionalities of a scraper. In this project, there are a few preventative measures:
+Observer is designed as a low-frequency discovery service, not a general-purpose crawler. Each configured careers page is checked once per day, and scraping integrations are not automatically retried when they fail. Failed or changed integrations are surfaced for human review instead of being repeatedly requested.
 
-- Playwright stealth
-- Variable delays
-- Few to no interactions with the page
+Integrations read publicly available job listings and minimize their interaction with each page. A typical integration navigates to a careers page and extracts the visible listing data, using only the clicks, scrolling, or pagination needed to reveal those listings or confirm that a result set is empty. Observer does not submit applications, authenticate as candidates, collect candidate information, or continuously poll careers sites.
 
-We also run it on a residential IP just once a day. However, this is nowhere near all the things that we could have done (I believe the residential IP is doing the hard-lifting here). We've also refrained from scraping sites that clearly do not wish to be scraped (Google source code is fully obfuscated).
+The project favors public APIs and structured job-board endpoints when they are available. New integrations are intended to remain limited to public careers information.
 
 ## Todo
 
 - [ ] Remove the legacy five-column migration and its migration-specific tests after all deployed sheets are confirmed migrated; retain validation of the six-column layout
 - [ ] Extend company directory 
-- [ ] Add proxies to protect IP
 - [ ] Concurrently scrape
-- [ ] Enhance anti-bot detection measures
 - [ ] Refactor code to be cleaner
