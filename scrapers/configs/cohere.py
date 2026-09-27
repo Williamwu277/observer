@@ -1,13 +1,10 @@
-from strategies.simple_scrape import SimpleScrapeConfig, simple_scrape
+from strategies.ashby import AshbyScrapeConfig
+from strategies.simple_scrape import simple_scrape
 
 
-config = SimpleScrapeConfig(
+config = AshbyScrapeConfig(
     company_name="cohere",
     base_url="https://jobs.ashbyhq.com/cohere?employmentType=Intern",
-    jobs_selector="div[class='ashby-job-posting-brief-list'] a",
-    url_selector=":scope",
-    title_selector="h3",
-    link_augmentation=lambda url: "https://jobs.ashbyhq.com" + url,
 )
 
 strategy = simple_scrape
