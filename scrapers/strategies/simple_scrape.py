@@ -51,7 +51,7 @@ def simple_scrape(
     # verification state, which decides whether the portal changed.
     try:
         page.locator(config.jobs_selector).first.wait_for(
-            state="attached", timeout=5000
+            state="attached", timeout=10000
         )
         jobs_list = page.locator(config.jobs_selector).all()
     except TimeoutError:

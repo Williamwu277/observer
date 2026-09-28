@@ -11,14 +11,11 @@ ASHBY_EMPTY_PORTAL_SELECTOR = (
 
 
 def augment_ashby_url(url: str) -> str:
-    """Turn an Ashby job path into an absolute URL."""
     return f"{ASHBY_BASE_URL}{url}"
 
 
 @dataclass
 class AshbyScrapeConfig(SimpleScrapeConfig):
-    """Simple-scrape defaults shared by Ashby-hosted job boards."""
-
     jobs_selector: str = "div[class='ashby-job-posting-brief-list'] a"
     url_selector: str = ":scope"
     title_selector: str = "h3"

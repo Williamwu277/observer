@@ -71,6 +71,8 @@ strategy = simple_scrape
 
 This `Ramp` integration uses `simple_scrape` (as well as the corresponding `SimpleScrapeConfig`). It defines the URL to the portal as well as the selectors needed to find the job posting information. As well, it makes use of the optional click at the beginning of a simple scrape (`section_click_name`).
 
+For careers pages hosted on `jobs.ashbyhq.com`, use `AshbyScrapeConfig` with the `simple_scrape` strategy instead of defining the shared Ashby selectors again.
+
 In the event that neither simple scrape nor paginating scrape can fulfill your use-case, you can define your own scraping strategy (and config) and set the `strategy` and `config` variables to it in your file. You must adhere to the following function signature below:
 
 ```python
