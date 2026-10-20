@@ -3,6 +3,10 @@ from enum import Enum
 from typing import Callable, Optional
 
 
+class IncompleteScrapeError(Exception):
+    """Raised when a scraper cannot establish that it read the complete job list."""
+
+
 class NoJobsFoundError(Exception):
     """
     Raised when a scrape completes without erroring but finds zero jobs.

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import List
 from random import uniform
 
-from models import ScrapeConfig, ScrapeResult
+from models import ScrapeConfig, ScrapeResult, IncompleteScrapeError
 
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ def paginating_scrape(
     """
 
     jobs_list = []
+    seen_pages = set()
 
     for page_number in range(MAX_PAGES):
         current_page_jobs = []
@@ -45,6 +46,16 @@ def paginating_scrape(
                 raise Exception(
                     f"No jobs found on page {page_number + 1} for {config.company_name}"
                 )
+
+        page_urls = tuple(sorted(
+            job.locator(config.url_selector).first.get_attribute("href") or ""
+            for job in current_page_jobs
+        ))
+        if page_urls and page_urls in seen_pages:
+            raise IncompleteScrapeError(
+                f"Pagination repeated a page for {config.company_name}"
+            )
+        seen_pages.add(page_urls)
 
         # Grab the information from each job
         for job in current_page_jobs:
@@ -75,6 +86,16 @@ def paginating_scrape(
         next_page_element = page.locator(config.next_page_selector)
         if next_page_element.count() == 0 or not next_page_element.is_enabled():
             break
+
+        if not current_page_jobs:
+            raise IncompleteScrapeError(
+                f"Empty page with more jobs available for {config.company_name}"
+            )
+
+        if page_number + 1 == MAX_PAGES:
+            raise IncompleteScrapeError(
+                f"More jobs remain after {MAX_PAGES} pages for {config.company_name}"
+            )
 
         next_page_element.click()
 

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Optional, List
 from random import uniform
 
-from models import ScrapeConfig, ScrapeResult
+from models import ScrapeConfig, ScrapeResult, IncompleteScrapeError
 
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,11 @@ def simple_scrape(
             logger.info("Clicking on more jobs button %s", page_number + 1)
             more_jobs_element.click()
             page.wait_for_timeout(uniform(3000, 5000))
+        else:
+            if more_jobs_element.count() > 0 and more_jobs_element.is_enabled():
+                raise IncompleteScrapeError(
+                    f"More jobs remain after {MAX_MORE_JOBS_CLICKS} clicks for {config.company_name}"
+                )
 
     # Grab all the jobs. An empty result is handled by the framework's
     # verification state, which decides whether the portal changed.
