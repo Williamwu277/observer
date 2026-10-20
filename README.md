@@ -31,6 +31,53 @@ You can see the spreadsheet of internships as well as the entire directory [here
 
 Details of each run will be stored within `/logs` in case you need to debug
 
+### Docker
+
+Published images use the same repository, `ghcr.io/williamwu277/observer`:
+
+| Browser mode | Moving tag | Commit tag | Docker build target |
+| --- | --- | --- | --- |
+| Bundled Chromium | `latest` | `<commit-sha>` | `local` |
+| External Playwright Server | `remote` | `<commit-sha>-remote` | `remote` |
+
+The publish workflow builds both variants. Its `tag_latest` option controls whether both moving tags are updated; commit tags are always published. Existing `latest` and commit tags continue to include Chromium.
+
+For the bundled browser, use the credentials and `.env` file from Setup:
+
+```bash
+docker run --rm --init --ipc=host \
+  --env-file .env \
+  -v "$(pwd)/credentials.json:/app/credentials.json:ro" \
+  ghcr.io/williamwu277/observer:latest
+```
+
+To run Chromium separately, start a matching Playwright Server on a private network:
+
+```bash
+docker network create observer
+docker run -d --name observer-browser --network observer --init --ipc=host \
+  --workdir /home/pwuser --user pwuser \
+  mcr.microsoft.com/playwright:v1.61.0-noble \
+  /bin/sh -c "npx -y playwright@1.61.0 run-server --port 3000 --host 0.0.0.0"
+
+docker run --rm --init --network observer \
+  --env-file .env \
+  -v "$(pwd)/credentials.json:/app/credentials.json:ro" \
+  -e PLAYWRIGHT_SERVER_URL=ws://observer-browser:3000/ \
+  ghcr.io/williamwu277/observer:remote
+```
+
+The remote image requires `PLAYWRIGHT_SERVER_URL`; it contains no browser binaries. Both modes use full Chromium in its new headless mode, preserving the Roblox compatibility workaround. The remote server must stay on a private network and must use the same Playwright major and minor version as the client. The client is pinned to `1.61.0` in `requirements.txt`; update that pin and the server image/package together.
+
+For local builds:
+
+```bash
+docker build --target local -t observer:local .
+docker build --target remote -t observer:remote .
+```
+
+An untargeted `docker build` also builds `local`, the final stage. To select scrapers, override the container command with `python scrape.py roblox` after the image name. Add a volume at `/app/scrapers/logs` to retain logs after the container exits.
+
 ## Documentation
 
 - [The Scraping Framework](#1-the-scraping-framework)

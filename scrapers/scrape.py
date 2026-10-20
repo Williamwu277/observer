@@ -1,4 +1,6 @@
+import json
 import logging
+import os
 import traceback
 import shutil
 import imagehash
@@ -10,7 +12,7 @@ from importlib import import_module
 from pathlib import Path
 from sys import argv
 from typing import List, Dict, Tuple
-from playwright.sync_api import Playwright, sync_playwright
+from playwright.sync_api import Browser, Playwright, sync_playwright
 from playwright_stealth import Stealth
 
 from const import (
@@ -87,17 +89,33 @@ def configure_logging() -> None:
     )
 
 
+def start_browser(playwright: Playwright) -> Browser:
+    """Launch full Chromium locally or through a compatible Playwright Server."""
+    server_url = os.getenv("PLAYWRIGHT_SERVER_URL")
+    if server_url:
+        logger.info("Connecting to remote Playwright Server")
+        return playwright.chromium.connect(
+            server_url,
+            timeout=30_000,
+            headers={
+                "x-playwright-launch-options": json.dumps(
+                    {"channel": "chromium", "headless": True}
+                )
+            },
+        )
+
+    logger.info("Launching local Chromium")
+    # headless=False and args=["--headless=new"] avoid roblox not loading for some reason
+    return playwright.chromium.launch(headless=False, args=["--headless=new"])
+
+
 def run_scrapers(
     playwright: Playwright, scraper_names: List[str]
 ) -> Tuple[Dict[str, ScrapeResult], List[StatusResult]]:
     """
     Entry point for starting the scraping process
     """
-    # headless=False and args=["--headless=new"] avoid roblox not loading for some reason
-    browser = playwright.chromium.launch(
-        headless=False,
-        args=["--headless=new"],
-    )
+    browser = start_browser(playwright)
 
     scraped_results = {}
     locations_by_url = {}

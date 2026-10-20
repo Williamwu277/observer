@@ -1,4 +1,4 @@
-playwright
+playwright==1.61.0
 playwright-stealth
 google-api-python-client
 python-dotenv
