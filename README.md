@@ -130,6 +130,8 @@ def <insert_function_name>(config: <insert_config_type>, page: Page) -> dict[str
 
 Every company included in a run is reconciled with the spreadsheet, regardless of scraper status. Jobs missing from that run's results expire, including when the scraper fails or finds no jobs.
 
+If a previously seen URL returns, its existing row becomes Active again without a new-job announcement. Its original scrape date is preserved, and a newly scraped location updates the row when available. Historical expired copies stay expired when an active copy already exists.
+
 Strategies must raise `IncompleteScrapeError` rather than return partial results when they cannot finish loading jobs. Shared strategies reject pagination limits with more jobs remaining and repeated pages; Greenhouse feeds must match their reported total and contain unique job IDs. Custom strategies should validate their site's completion signal too. Feed strategies may return `{"jobs": [], "complete": True}` only after verifying that the source is genuinely empty; an empty list without that verification still requires portal review.
 
 #### 3. Scraper Statuses

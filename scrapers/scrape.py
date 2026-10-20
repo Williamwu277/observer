@@ -296,26 +296,38 @@ def update_scraper_results(
     # Reconcile stored data with scraped data
     expired_listings = 0
     updated_locations = 0
+    reactivated_listings = 0
+    rows_by_job = {}
     for row in data:
-        status = row[DATA_MAP["Status"]]
-        url = row[DATA_MAP["Url"]]
         company_name = row[DATA_MAP["Company"]]
+        if company_name not in company_queue:
+            continue
+        url = row[DATA_MAP["Url"]]
+        rows_by_job.setdefault((company_name, url), []).append(row)
 
-        if company_name not in company_queue or status == "Expired":
+    for (company_name, url), stored_rows in rows_by_job.items():
+        result = scraped_results.get(url)
+        if result is None or result.company_name != company_name:
+            for row in stored_rows:
+                if row[DATA_MAP["Status"]] != "Expired":
+                    row[DATA_MAP["Status"]] = "Expired"
+                    expired_listings += 1
             continue
 
-        elif url not in scraped_results:
-            # If the job was not found in the most recent scrape, it probably isn't active
-            row[DATA_MAP["Status"]] = "Expired"
-            expired_listings += 1
-
-        else:
-            location = normalize_location(scraped_results[url].location)
-            if location and row[DATA_MAP["Location"]] != location:
-                row[DATA_MAP["Location"]] = location
-                updated_locations += 1
-            # Get rid of jobs we've already found
-            del scraped_results[url]
+        # Prefer a current row over older expired copies from previous runs.
+        row = next(
+            (row for row in stored_rows if row[DATA_MAP["Status"]] == "Active"),
+            stored_rows[0],
+        )
+        if row[DATA_MAP["Status"]] == "Expired":
+            row[DATA_MAP["Status"]] = "Active"
+            reactivated_listings += 1
+        location = normalize_location(result.location)
+        if location and row[DATA_MAP["Location"]] != location:
+            row[DATA_MAP["Location"]] = location
+            updated_locations += 1
+        # Previously seen URLs, including reactivated jobs, are never new jobs.
+        del scraped_results[url]
 
     # Convert to spreadsheet data format
     spreadsheet_updates = [
@@ -334,8 +346,9 @@ def update_scraper_results(
         "Found a total of %s new jobs to update!", len(spreadsheet_updates)
     )
     logger.info("Updated locations for %s existing jobs", updated_locations)
+    logger.info("Reactivated %s previously seen jobs", reactivated_listings)
 
-    if len(spreadsheet_updates) > 0 or expired_listings > 0 or updated_locations > 0:
+    if spreadsheet_updates or expired_listings or updated_locations or reactivated_listings:
         sheet_manager.update_spreadsheet(spreadsheet_updates + data, INTERNSHIP_RANGE)
 
     return expired_listings
