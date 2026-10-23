@@ -7,7 +7,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scrapers"))
 
 from discord_integration import WebhookType
-from models import ScrapeResult
+from models import ScrapeResult, ScrapeStatus, StatusResult
 from run_summary import build_run_summary
 from scrape import (
     send_discord_notifications,
@@ -27,6 +27,9 @@ class FakeSheetManager:
 
 
 class JobOutputTests(unittest.TestCase):
+    def operational_statuses(self, company):
+        return [StatusResult(company, "https://example.com", ScrapeStatus.OPERATIONAL, "now", 1, 1)]
+
     def test_duplicate_urls_merge_unique_locations_in_scrape_order(self):
         results = {}
         locations_by_url = {}
@@ -63,7 +66,7 @@ class JobOutputTests(unittest.TestCase):
             )
 
         manager = FakeSheetManager([])
-        update_scraper_results(manager, ["stripe"], results)
+        update_scraper_results(manager, self.operational_statuses("stripe"), results)
         send_discord_notifications([], results)
 
         self.assertEqual(len(manager.updates[0][0]), 1)
@@ -93,7 +96,7 @@ class JobOutputTests(unittest.TestCase):
             "new": ScrapeResult("acme", "new", "New Intern", " Vancouver ", "now"),
         }
 
-        expired = update_scraper_results(manager, ["acme"], results)
+        expired = update_scraper_results(manager, self.operational_statuses("acme"), results)
 
         self.assertEqual(expired, 0)
         self.assertEqual(list(results), ["new"])
@@ -115,7 +118,7 @@ class JobOutputTests(unittest.TestCase):
             )
         }
 
-        update_scraper_results(manager, ["acme"], results)
+        update_scraper_results(manager, self.operational_statuses("acme"), results)
 
         self.assertEqual(results, {})
         self.assertEqual(manager.updates[0][0][0][4], "Seattle")
@@ -127,7 +130,7 @@ class JobOutputTests(unittest.TestCase):
         ]
         manager = FakeSheetManager(rows)
 
-        expired = update_scraper_results(manager, ["acme"], {})
+        expired = update_scraper_results(manager, self.operational_statuses("acme"), {})
 
         self.assertEqual(expired, 1)
         self.assertEqual(rows[0][5], "Expired")

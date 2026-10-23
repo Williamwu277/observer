@@ -4,12 +4,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import imagehash
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scrapers"))
 
 from configs.zipline import config as zipline_config
+from const import INTERNSHIP_RANGE, STATUS_RANGE
 from models import IncompleteScrapeError, ScrapeResult, ScrapeStatus, StatusResult
-from scrape import scrape_internships
+from scrape import scrape_internships, update_scraper_results
 from scraping_framework import scrape_integration
 from strategies.greenhouse import greenhouse_scrape
 from strategies.paginating_scrape import PaginatingScrapeConfig, paginating_scrape
@@ -111,24 +113,33 @@ class StrategySafetyTests(unittest.TestCase):
 
 
 class ReconciliationTests(unittest.TestCase):
+    def setUp(self):
+        cleanup = patch("scrape.shutil.rmtree")
+        cleanup.start()
+        self.addCleanup(cleanup.stop)
+
     @patch("scrape.send_discord_summary")
-    @patch("scrape.send_discord_notifications", return_value=(0, 0))
-    @patch("scrape.update_scraper_status")
+    @patch("scrape.send_discord_batch_update", return_value=True)
+    @patch("scrape.send_discord_update", return_value=True)
     @patch("scrape.SheetManager")
     @patch("scrape.run_scrapers")
     @patch("scrape.sync_playwright")
-    def test_all_queued_companies_reconcile_regardless_of_status(
-        self, playwright, run_scrapers, manager_class, update_status, send_jobs, send_summary
+    def test_only_trusted_runs_change_jobs_and_announce_but_all_statuses_update(
+        self, playwright, run_scrapers, manager_class, send_error, send_jobs, send_summary
     ):
         rows = [
             ["date", "failed", "Old Intern", "https://example.com/failed", "Toronto", "Active"],
             ["date", "empty", "Old Intern", "https://example.com/empty", "Toronto", "Active"],
             ["date", "confident", "Old Intern", "https://example.com/confident", "Toronto", "Active"],
             ["date", "success", "Gone Intern", "https://example.com/gone", "Toronto", "Active"],
+            ["date", "success", "Existing Intern", "https://example.com/existing", "Toronto", "Active"],
             ["date", "unqueued", "Old Intern", "https://example.com/unqueued", "Toronto", "Active"],
         ]
         manager = manager_class.return_value
-        manager.read_sheet.return_value = rows
+        untouched_status = ["unqueued", "https://example.com", "Operational", "before", 1, 1, "0"]
+        manager.read_sheet.side_effect = lambda range_name: (
+            [untouched_status] if range_name == STATUS_RANGE else rows
+        )
         statuses = [
             StatusResult(name, "https://example.com", status, "now", 1, 1)
             for name, status in (
@@ -138,20 +149,108 @@ class ReconciliationTests(unittest.TestCase):
                 ("success", ScrapeStatus.OPERATIONAL),
             )
         ]
+        statuses[0].error = "Scrape failed"
         run_scrapers.return_value = ({
+            "https://example.com/failed": ScrapeResult("failed", "https://example.com/failed", "Old Intern", "Seattle"),
             "https://example.com/partial": ScrapeResult("failed", "https://example.com/partial", "Partial Intern"),
+            "https://example.com/untrusted": ScrapeResult("empty", "https://example.com/untrusted", "Untrusted Intern"),
+            "https://example.com/existing": ScrapeResult("success", "https://example.com/existing", "Existing Intern", "Seattle"),
             "https://example.com/new": ScrapeResult("success", "https://example.com/new", "New Intern"),
         }, statuses)
 
         scrape_internships(["failed", "empty", "confident", "success"])
 
-        written = manager.update_spreadsheet.call_args.args[0]
-        self.assertEqual([row[5] for row in rows], ["Expired"] * 4 + ["Active"])
+        writes = {call.args[1]: call.args[0] for call in manager.update_spreadsheet.call_args_list}
+        written = writes[INTERNSHIP_RANGE]
+        self.assertEqual([row[5] for row in rows], ["Active", "Active", "Expired", "Expired", "Active", "Active"])
+        self.assertEqual(rows[0][4], "Toronto")
+        self.assertEqual(rows[4][4], "Seattle")
         self.assertEqual(len(written), 7)
-        expected_urls = ["https://example.com/partial", "https://example.com/new"]
-        self.assertEqual([row[3] for row in written[:2]], expected_urls)
-        self.assertEqual(list(send_jobs.call_args.args[1]), expected_urls)
-        update_status.assert_called_once_with(manager, statuses)
+        self.assertEqual(written[0][3], "https://example.com/new")
+        self.assertEqual([message["url"] for message in send_jobs.call_args.args[1]], ["https://example.com/new"])
+        errors_by_name = {
+            call.args[1][0]["title"]: call.args[1][0]["description"]
+            for call in send_error.call_args_list
+        }
+        self.assertEqual(errors_by_name["failed"], "Scrape failed")
+        self.assertIn("empty", errors_by_name)
+        status_by_name = {row[0]: row for row in writes[STATUS_RANGE]}
+        for result in statuses:
+            self.assertEqual(status_by_name[result.company_name][2], result.status.value)
+        self.assertEqual(status_by_name["unqueued"], untouched_status)
+        summary = send_summary.call_args.args[0]
+        self.assertIn("1 new listing added", summary)
+        self.assertIn("2 listings marked expired", summary)
+        self.assertNotIn("Partial Intern", summary)
+        self.assertNotIn("Untrusted Intern", summary)
+
+    def test_untrusted_or_missing_status_cannot_write_jobs(self):
+        manager = Mock()
+        statuses = [
+            StatusResult(name, "https://example.com", status, "now", 1, 1)
+            for name, status in (("failed", ScrapeStatus.DOWN), ("empty", ScrapeStatus.QUESTIONABLE))
+        ]
+        results = {
+            name: ScrapeResult(name, name, "Intern")
+            for name in ("failed", "empty", "missing")
+        }
+
+        self.assertEqual(update_scraper_results(manager, statuses, results), 0)
+
+        self.assertEqual(results, {})
+        manager.read_sheet.assert_not_called()
+        manager.update_spreadsheet.assert_not_called()
+
+    def test_trusted_empty_runs_expire_existing_jobs(self):
+        for status in (ScrapeStatus.OPERATIONAL, ScrapeStatus.CONFIDENT):
+            with self.subTest(status=status):
+                manager = Mock()
+                row = ["date", "acme", "Intern", "old", "Toronto", "Active"]
+                manager.read_sheet.return_value = [row]
+                statuses = [StatusResult("acme", "https://example.com", status, "now", 1, 1)]
+
+                self.assertEqual(update_scraper_results(manager, statuses, {}), 1)
+
+                self.assertEqual(row[5], "Expired")
+                manager.update_spreadsheet.assert_called_once_with([row], INTERNSHIP_RANGE)
+
+    @patch("scrape.Path.exists")
+    @patch("scrape.calculate_pHash", return_value=imagehash.hex_to_hash("0000000000000000"))
+    @patch("scrape.SheetManager")
+    @patch("scrape.run_scrapers")
+    @patch("scrape.sync_playwright")
+    def test_empty_browser_jobs_use_resolved_screenshot_status(
+        self, playwright, run_scrapers, manager_class, calculate_hash, screenshot_exists
+    ):
+        for previous_hash, has_screenshot, expected_status in (
+            ("0", True, ScrapeStatus.CONFIDENT),
+            ("0000000000000000", True, ScrapeStatus.CONFIDENT),
+            ("ffffffffffffffff", True, ScrapeStatus.DOWN),
+            ("0000000000000000", False, ScrapeStatus.QUESTIONABLE),
+        ):
+            with self.subTest(previous_hash=previous_hash, has_screenshot=has_screenshot):
+                manager = manager_class.return_value
+                manager.reset_mock()
+                row = ["date", "acme", "Intern", "old", "Toronto", "Active"]
+                previous = ["acme", "https://example.com", "Confident", "before", 1, 1, previous_hash]
+                manager.read_sheet.side_effect = lambda range_name: (
+                    [previous] if range_name == STATUS_RANGE else [row]
+                )
+                statuses = [StatusResult("acme", "https://example.com", ScrapeStatus.QUESTIONABLE, "now", 1, 1)]
+                run_scrapers.return_value = ({}, statuses)
+                screenshot_exists.return_value = has_screenshot
+
+                scrape_internships(["acme"], debug=True)
+
+                writes = {call.args[1]: call.args[0] for call in manager.update_spreadsheet.call_args_list}
+                self.assertEqual(writes[STATUS_RANGE][0][2], expected_status.value)
+                if expected_status == ScrapeStatus.CONFIDENT:
+                    self.assertEqual(writes[STATUS_RANGE][0][6], "0000000000000000")
+                    self.assertEqual(row[5], "Expired")
+                    self.assertIn(INTERNSHIP_RANGE, writes)
+                else:
+                    self.assertEqual(row[5], "Active")
+                    self.assertNotIn(INTERNSHIP_RANGE, writes)
 
 
 if __name__ == "__main__":

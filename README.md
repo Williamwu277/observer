@@ -178,9 +178,8 @@ After a scraping run, you may see the status page on the spreadsheet. A scraping
 `IncompleteScrapeError` means a scraper could not confirm that it collected the
 complete job list.
 
-Every queued company is reconciled with the spreadsheet after the run. Listings
-missing from that company's results expire, including when its scraper fails or
-finds no jobs.
+Only `Operational` or `Confident` runs update jobs and announce new listings on
+Discord. Missing listings expire; `Questionable` and `Down` runs leave jobs unchanged.
 
 Usually, integrations should be `Operational` or `Confident`. A browser scraper
 that finds no source jobs becomes `Questionable`; a validated empty API feed or
