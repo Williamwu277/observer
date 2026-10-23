@@ -27,12 +27,14 @@ def get_company_directory() -> List[str]:
 
 def filter_intern_title(title: str) -> bool:
     """
-    Filter job for intern title.
+    Filter job for internship or co-op titles.
     """
     title = title.lower()
-    if title.count("intern") <= title.count("interna"):
-        return False
-    return True
+    return (
+        title.count("intern") > title.count("interna")
+        or title.count("coop") > 0
+        or title.count("co-op") > 0
+    )
 
 
 def filter_title_role(title: str) -> bool:
