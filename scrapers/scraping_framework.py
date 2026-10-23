@@ -62,12 +62,13 @@ def navigate_to_portal(config: ScrapeConfig, page: Page) -> dict:
 
 
 def post_scrape_action(
-    config: ScrapeConfig, page: Page, jobs: List[ScrapeResult], **_: Any
+    config: ScrapeConfig, page: Page, jobs: List[ScrapeResult],
+    complete: bool = False, **_: Any
 ) -> dict:
     """
     If the portal has no jobs, take a screenshot at the empty_portal_selector
     """
-    if len(jobs) > 0:
+    if len(jobs) > 0 or complete:
         return {"jobs": jobs}
 
     if config.empty_portal_selector is None:

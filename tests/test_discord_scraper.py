@@ -18,11 +18,13 @@ class DiscordScraperTests(unittest.TestCase):
             response.json.return_value = {
                 "jobs": [
                     {
+                        "id": 123,
                         "title": f"Software Engineer Intern - {board}",
                         "absolute_url": f"https://job-boards.greenhouse.io/{board}/jobs/123",
                         "location": {"name": "San Francisco, CA"},
                     }
-                ]
+                ],
+                "meta": {"total": 1},
             }
             responses.append(response)
         page.request.get.side_effect = responses
@@ -37,10 +39,10 @@ class DiscordScraperTests(unittest.TestCase):
             [f"https://api.greenhouse.io/v1/boards/{board}/jobs" for board in BOARDS],
         )
 
-    def test_failed_board_stops_scrape_instead_of_expiring_its_jobs(self):
+    def test_failed_board_raises_instead_of_returning_partial_results(self):
         page = Mock()
         first_board = Mock(ok=True)
-        first_board.json.return_value = {"jobs": []}
+        first_board.json.return_value = {"jobs": [], "meta": {"total": 0}}
         page.request.get.side_effect = [first_board, Mock(ok=False, status=503)]
 
         with self.assertRaisesRegex(

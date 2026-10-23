@@ -128,11 +128,15 @@ def <insert_function_name>(config: <insert_config_type>, page: Page) -> dict[str
 # Returns {"jobs": List[ScrapeResult]}
 ```
 
+Every company included in a run is reconciled with the spreadsheet, regardless of scraper status. Jobs missing from that run's results expire, including when the scraper fails or finds no jobs.
+
+Strategies must raise `IncompleteScrapeError` rather than return partial results when they cannot finish loading jobs. Shared strategies reject pagination limits with more jobs remaining and repeated pages; Greenhouse feeds must match their reported total and contain unique job IDs. Custom strategies should validate their site's completion signal too. Feed strategies may return `{"jobs": [], "complete": True}` only after verifying that the source is genuinely empty; an empty list without that verification still requires portal review.
+
 #### 3. Scraper Statuses
 
 After a scraping run, you may see the status page on the spreadsheet. A scraping integration can have statuses of:
 
-- `Operational` means that the scraper is finding job listings on the career site (even if it gets filtered out later by title). This gives us a very high confidence level of the operation of the scraper
+- `Operational` means that the scraper completed successfully, including when its jobs are filtered out or a validated feed confirms that no jobs are available
 - `Confident` means that though the scraper may not be finding any job listings, the automated portal change detection system has determined that there has probably been no changes
 - `Questionable` means that the scraper is not finding any job listings on the portal. Someone should take a look to make sure that is the correct behaviour
 - `Down` means that something has changed or the scraper is erroring out

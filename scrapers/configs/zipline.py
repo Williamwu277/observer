@@ -3,12 +3,13 @@
 from playwright.sync_api import Page
 
 from models import ScrapeConfig, ScrapeResult
+from strategies.greenhouse import validate_greenhouse_jobs
 
 
 JOBS_URL = "https://boards-api.greenhouse.io/v1/boards/flyzipline/jobs"
 
 
-def zipline_scrape(config: ScrapeConfig, page: Page) -> dict[str, list[ScrapeResult]]:
+def zipline_scrape(config: ScrapeConfig, page: Page) -> dict:
     response = page.request.get(JOBS_URL)
     if not response.ok:
         raise RuntimeError(f"Zipline job feed returned HTTP {response.status}")
@@ -22,8 +23,9 @@ def zipline_scrape(config: ScrapeConfig, page: Page) -> dict[str, list[ScrapeRes
                 title=posting["title"],
                 location=posting["location"]["name"],
             )
-            for posting in response.json()["jobs"]
-        ]
+            for posting in validate_greenhouse_jobs(response.json())
+        ],
+        "complete": True,
     }
 
 

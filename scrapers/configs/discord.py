@@ -2,12 +2,13 @@
 
 from models import ScrapeConfig, ScrapeResult
 from playwright.sync_api import Page
+from strategies.greenhouse import validate_greenhouse_jobs
 
 
 BOARDS = ("discord", "discordinternational", "internationaleor")
 
 
-def discord_scrape(config: ScrapeConfig, page: Page) -> dict[str, list[ScrapeResult]]:
+def discord_scrape(config: ScrapeConfig, page: Page) -> dict:
     """Read every board used by Discord's careers page before returning jobs."""
     jobs = []
     for board in BOARDS:
@@ -16,7 +17,7 @@ def discord_scrape(config: ScrapeConfig, page: Page) -> dict[str, list[ScrapeRes
         if not response.ok:
             raise RuntimeError(f"Discord job board {board} returned HTTP {response.status}")
 
-        for posting in response.json()["jobs"]:
+        for posting in validate_greenhouse_jobs(response.json()):
             jobs.append(
                 ScrapeResult(
                     company_name=config.company_name,
@@ -26,7 +27,7 @@ def discord_scrape(config: ScrapeConfig, page: Page) -> dict[str, list[ScrapeRes
                 )
             )
 
-    return {"jobs": jobs}
+    return {"jobs": jobs, "complete": True}
 
 
 config = ScrapeConfig(
