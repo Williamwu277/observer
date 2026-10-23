@@ -39,7 +39,7 @@ class DiscordScraperTests(unittest.TestCase):
             [f"https://api.greenhouse.io/v1/boards/{board}/jobs" for board in BOARDS],
         )
 
-    def test_failed_board_stops_scrape_instead_of_expiring_its_jobs(self):
+    def test_failed_board_raises_instead_of_returning_partial_results(self):
         page = Mock()
         first_board = Mock(ok=True)
         first_board.json.return_value = {"jobs": [], "meta": {"total": 0}}

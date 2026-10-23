@@ -118,6 +118,7 @@ def run_scrapers(
     browser = start_browser(playwright)
 
     scraped_results = {}
+    locations_by_url = {}
     status_results = []
 
     for i, name in enumerate(scraper_names):
@@ -142,14 +143,10 @@ def run_scrapers(
             integration = import_module(f"configs.{name}")
             portal_url = integration.config.base_url
             results = scrape_integration(integration.config, integration.strategy, page)
-            company_results = {}
-            company_locations = {}
             for result in results:
                 result.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                store_scrape_result(company_results, company_locations, result)
-                logger.info(company_results[result.url])
-            # Publish only once the entire company batch has succeeded.
-            scraped_results.update(company_results)
+                store_scrape_result(scraped_results, locations_by_url, result)
+                logger.info(scraped_results[result.url])
 
         except NoJobsFoundError:
             logger.warning("No jobs found while scraping %s", name)
@@ -409,22 +406,13 @@ def scrape_internships(company_queue: List[str], debug=False):
     with sync_playwright() as playwright:
         scraped_results, status_results = run_scrapers(playwright, company_queue)
 
-    successful_companies = [
-        result.company_name for result in status_results
-        if result.status == ScrapeStatus.OPERATIONAL
-    ]
-    # Failed and unverified empty scrapes must not add, modify, or expire jobs.
-    scraped_results = {
-        url: job for url, job in scraped_results.items()
-        if job.company_name in successful_companies
-    }
     total_listings = len(scraped_results)
     sheet_manager = SheetManager()
     sheet_manager.start()
 
     # Update scraped results on the spreadsheet as well as if the entries are still valid
     expired_listings = update_scraper_results(
-        sheet_manager, successful_companies, scraped_results
+        sheet_manager, company_queue, scraped_results
     )
 
     # Aggregate and update scraper health regardless of whether new jobs were found

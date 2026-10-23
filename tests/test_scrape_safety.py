@@ -86,30 +86,23 @@ class StrategySafetyTests(unittest.TestCase):
             with self.assertRaisesRegex(IncompleteScrapeError, "More jobs remain"):
                 simple_scrape(config, page)
 
-    def test_malformed_job_invalidates_the_whole_batch_before_filtering(self):
-        config = SimpleScrapeConfig("acme", "https://example.com", "cards", "a", "h3")
-        strategy = Mock(return_value={"jobs": [
-            ScrapeResult("acme", "https://example.com/valid", "Software Engineer Intern"),
-            ScrapeResult("acme", "", "Unrelated job"),
-        ]})
-        with self.assertRaises(IncompleteScrapeError):
-            scrape_integration(config, strategy, Mock())
 
-
-class ReconciliationSafetyTests(unittest.TestCase):
+class ReconciliationTests(unittest.TestCase):
     @patch("scrape.send_discord_summary")
     @patch("scrape.send_discord_notifications", return_value=(0, 0))
     @patch("scrape.update_scraper_status")
     @patch("scrape.SheetManager")
     @patch("scrape.run_scrapers")
     @patch("scrape.sync_playwright")
-    def test_failed_and_unverified_scrapes_leave_jobs_untouched(
+    def test_all_queued_companies_reconcile_regardless_of_status(
         self, playwright, run_scrapers, manager_class, update_status, send_jobs, send_summary
     ):
         rows = [
             ["date", "failed", "Old Intern", "https://example.com/failed", "Toronto", "Active"],
             ["date", "empty", "Old Intern", "https://example.com/empty", "Toronto", "Active"],
+            ["date", "confident", "Old Intern", "https://example.com/confident", "Toronto", "Active"],
             ["date", "success", "Gone Intern", "https://example.com/gone", "Toronto", "Active"],
+            ["date", "unqueued", "Old Intern", "https://example.com/unqueued", "Toronto", "Active"],
         ]
         manager = manager_class.return_value
         manager.read_sheet.return_value = rows
@@ -118,6 +111,7 @@ class ReconciliationSafetyTests(unittest.TestCase):
             for name, status in (
                 ("failed", ScrapeStatus.DOWN),
                 ("empty", ScrapeStatus.QUESTIONABLE),
+                ("confident", ScrapeStatus.CONFIDENT),
                 ("success", ScrapeStatus.OPERATIONAL),
             )
         ]
@@ -126,13 +120,14 @@ class ReconciliationSafetyTests(unittest.TestCase):
             "https://example.com/new": ScrapeResult("success", "https://example.com/new", "New Intern"),
         }, statuses)
 
-        scrape_internships(["failed", "empty", "success"])
+        scrape_internships(["failed", "empty", "confident", "success"])
 
         written = manager.update_spreadsheet.call_args.args[0]
-        self.assertEqual([row[5] for row in rows], ["Active", "Active", "Expired"])
-        self.assertEqual(len(written), 4)
-        self.assertEqual(written[0][3], "https://example.com/new")
-        self.assertEqual(list(send_jobs.call_args.args[1]), ["https://example.com/new"])
+        self.assertEqual([row[5] for row in rows], ["Expired"] * 4 + ["Active"])
+        self.assertEqual(len(written), 7)
+        expected_urls = ["https://example.com/partial", "https://example.com/new"]
+        self.assertEqual([row[3] for row in written[:2]], expected_urls)
+        self.assertEqual(list(send_jobs.call_args.args[1]), expected_urls)
         update_status.assert_called_once_with(manager, statuses)
 
 

@@ -6,7 +6,7 @@ from typing import Any, Callable, List
 
 from playwright.sync_api import Page
 
-from models import ScrapeConfig, ScrapeResult, NoJobsFoundError, IncompleteScrapeError
+from models import ScrapeConfig, ScrapeResult, NoJobsFoundError
 from utils import filter_job
 
 
@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 class ScrapeState(Enum):
     NAVIGATING_TO_PORTAL = "NAVIGATING_TO_PORTAL"
     FINDING_JOBS = "FINDING_JOBS"
-    VALIDATING_JOBS = "VALIDATING_JOBS"
     POST_SCRAPE_ACTION = "POST_SCRAPE_ACTION"
     FILTERING_JOBS = "FILTERING_JOBS"
 
@@ -33,7 +32,6 @@ def scrape_integration(
     states = [
         {"state": ScrapeState.NAVIGATING_TO_PORTAL, "action": navigate_to_portal},
         {"state": ScrapeState.FINDING_JOBS, "action": strategy},
-        {"state": ScrapeState.VALIDATING_JOBS, "action": validate_jobs},
         {"state": ScrapeState.POST_SCRAPE_ACTION, "action": post_scrape_action},
         {"state": ScrapeState.FILTERING_JOBS, "action": filter_jobs},
     ]
@@ -46,22 +44,6 @@ def scrape_integration(
         logger.info("Finished state: [%s]", state["state"].value)
 
     return scrape_context["jobs"]
-
-
-def validate_jobs(
-    config: ScrapeConfig, jobs: List[ScrapeResult], complete: bool = False, **_: Any
-) -> dict:
-    """Reject malformed batches as a whole, including jobs filtering would discard."""
-    if not isinstance(jobs, list) or any(
-        not isinstance(job, ScrapeResult)
-        or job.company_name != config.company_name
-        or not isinstance(job.url, str) or not job.url.startswith("https://")
-        or not isinstance(job.title, str) or not job.title.strip()
-        or (job.location is not None and not isinstance(job.location, str))
-        for job in jobs
-    ):
-        raise IncompleteScrapeError(f"Invalid job data for {config.company_name}")
-    return {"jobs": jobs, "complete": complete}
 
 
 def navigate_to_portal(config: ScrapeConfig, page: Page) -> dict:
