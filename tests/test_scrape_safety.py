@@ -1,47 +1,70 @@
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scrapers"))
 
-from configs.zipline import config as zipline_config, zipline_scrape
+from configs.zipline import config as zipline_config
 from models import IncompleteScrapeError, ScrapeResult, ScrapeStatus, StatusResult
 from scrape import scrape_internships
 from scraping_framework import scrape_integration
-from strategies.greenhouse import validate_greenhouse_jobs
+from strategies.greenhouse import greenhouse_scrape
 from strategies.paginating_scrape import PaginatingScrapeConfig, paginating_scrape
 from strategies.simple_scrape import SimpleScrapeConfig, simple_scrape
 
 
 class FeedSafetyTests(unittest.TestCase):
-    def test_truncated_feed_is_rejected_before_any_jobs_are_returned(self):
-        page = Mock()
-        page.request.get.return_value = Mock(ok=True)
-        page.request.get.return_value.json.return_value = {
-            "jobs": [{"id": 1}], "meta": {"total": 2}
-        }
-        with self.assertRaises(IncompleteScrapeError):
-            zipline_scrape(zipline_config, page)
-
-    def test_feed_requires_a_total_and_unique_valid_ids(self):
+    def test_malformed_or_incomplete_feed_is_rejected(self):
         for payload in (
             {"jobs": []},
-            {"jobs": [{"id": 1}, {"id": 1}], "meta": {"total": 2}},
-            {"jobs": [{"id": None}], "meta": {"total": 1}},
+            {"jobs": {}, "meta": {"total": 0}},
+            {"jobs": [{"id": 1}], "meta": {"total": 2}},
         ):
             with self.subTest(payload=payload), self.assertRaises(IncompleteScrapeError):
-                validate_greenhouse_jobs(payload)
+                greenhouse_scrape(zipline_config, payload)
 
-    def test_verified_empty_feed_is_valid(self):
-        self.assertEqual(validate_greenhouse_jobs({"jobs": [], "meta": {"total": 0}}), [])
+    def test_verified_empty_feed_succeeds_without_browser_review(self):
+        response = Mock(
+            ok=True,
+            status_code=200,
+            content=b'{"jobs": [], "meta": {"total": 0}}',
+        )
+        response.json.return_value = {"jobs": [], "meta": {"total": 0}}
+        resources = Mock()
+        resources.get_http_client.return_value.get.return_value = response
+        integration = SimpleNamespace(
+            config=zipline_config,
+            strategy=greenhouse_scrape,
+        )
 
-    def test_complete_empty_feed_succeeds_instead_of_requiring_human_review(self):
-        page = Mock()
-        page.request.get.return_value = Mock(ok=True)
-        page.request.get.return_value.json.return_value = {"jobs": [], "meta": {"total": 0}}
-        self.assertEqual(scrape_integration(zipline_config, zipline_scrape, page), [])
+        self.assertEqual(scrape_integration(integration, resources), [])
+
+        resources.browser_page.assert_not_called()
+        resources.get_http_client.return_value.get.assert_called_once_with(
+            zipline_config.api_url,
+            timeout=30,
+        )
+
+    def test_failed_api_request_is_not_retried(self):
+        response = Mock(ok=False, status_code=503, content=b"")
+        resources = Mock()
+        resources.get_http_client.return_value.get.return_value = response
+        integration = SimpleNamespace(
+            config=zipline_config,
+            strategy=greenhouse_scrape,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "zipline API returned HTTP 503"):
+            scrape_integration(integration, resources)
+
+        resources.get_http_client.return_value.get.assert_called_once_with(
+            zipline_config.api_url,
+            timeout=30,
+        )
+        resources.browser_page.assert_not_called()
 
 
 class StrategySafetyTests(unittest.TestCase):

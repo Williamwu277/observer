@@ -1,25 +1,19 @@
-import json
 import logging
-import os
 import traceback
 import shutil
 import imagehash
 
 from datetime import datetime
 from time import sleep, perf_counter
-from random import uniform, shuffle, choice
+from random import uniform, shuffle
 from importlib import import_module
 from pathlib import Path
 from sys import argv
 from typing import List, Dict, Tuple
-from playwright.sync_api import Browser, Playwright, sync_playwright
-from playwright_stealth import Stealth
+from playwright.sync_api import Playwright, sync_playwright
 
 from const import (
-    USER_AGENTS,
     DATA_MAP,
-    VIEWPORT,
-    INTERNSHIP_SHEET,
     INTERNSHIP_RANGE,
     STATUS_RANGE,
     STATUS_DATA_MAP,
@@ -28,7 +22,6 @@ from const import (
 from utils import (
     get_company_directory,
     trim_logs,
-    attach_network_monitor,
     calculate_pHash,
 )
 from sheet_manager import SheetManager
@@ -40,6 +33,7 @@ from discord_integration import (
     MAX_EMBED_DESCRIPTION_LENGTH,
 )
 from scraping_framework import scrape_integration
+from resource_manager import ResourceManager
 from models import NoJobsFoundError, ScrapeResult, ScrapeStatus, StatusResult
 from run_summary import build_run_summary
 
@@ -48,7 +42,9 @@ logger = logging.getLogger(__name__)
 
 
 def normalize_location(location: str | None) -> str:
-    """Normalize scraped location text for user-facing outputs."""
+    """
+    Normalize scraped location text for user-facing outputs.
+    """
     return " ".join((location or "").split())
 
 
@@ -57,7 +53,9 @@ def store_scrape_result(
     locations_by_url: Dict[str, List[str]],
     result: ScrapeResult,
 ) -> None:
-    """Store a result by URL while retaining every unique scraped location."""
+    """
+    Store a result by URL while retaining every unique scraped location.
+    """
     location = normalize_location(result.location)
     locations = locations_by_url.setdefault(result.url, [])
     known_locations = {value.casefold() for value in locations}
@@ -72,7 +70,9 @@ def store_scrape_result(
 
 
 def configure_logging() -> None:
-    """Configure console and file logging for a scraper run."""
+    """
+    Configure console and file logging for a scraper run.
+    """
     log_directory = Path("logs")
     log_directory.mkdir(parents=True, exist_ok=True)
 
@@ -89,93 +89,67 @@ def configure_logging() -> None:
     )
 
 
-def start_browser(playwright: Playwright) -> Browser:
-    """Launch full Chromium locally or through a compatible Playwright Server."""
-    server_url = os.getenv("PLAYWRIGHT_SERVER_URL")
-    if server_url:
-        logger.info("Connecting to remote Playwright Server")
-        return playwright.chromium.connect(
-            server_url,
-            timeout=30_000,
-            headers={
-                "x-playwright-launch-options": json.dumps(
-                    {"channel": "chromium", "headless": True}
-                )
-            },
-        )
-
-    logger.info("Launching local Chromium")
-    # headless=False and args=["--headless=new"] avoid roblox not loading for some reason
-    return playwright.chromium.launch(headless=False, args=["--headless=new"])
-
-
 def run_scrapers(
     playwright: Playwright, scraper_names: List[str]
 ) -> Tuple[Dict[str, ScrapeResult], List[StatusResult]]:
     """
-    Entry point for starting the scraping process
+    Entry point for starting the scraping process.
     """
-    browser = start_browser(playwright)
+    resources = ResourceManager(playwright)
 
     scraped_results = {}
     locations_by_url = {}
     status_results = []
 
-    for i, name in enumerate(scraper_names):
-        context = browser.new_context(
-            user_agent=choice(USER_AGENTS),
-            viewport=VIEWPORT,
-        )
-        page = context.new_page()
-        Stealth().apply_stealth_sync(page)
+    try:
+        for i, name in enumerate(scraper_names):
+            logger.info("Now scraping: %s", name)
+            resources.reset_transferred_bytes()
 
-        # Measure the data a residential proxy would transfer for this scrape
-        get_transferred_bytes = attach_network_monitor(context.new_cdp_session(page))
+            status = ScrapeStatus.OPERATIONAL
+            portal_url = ""
+            error = None
+            start_time = perf_counter()
 
-        logger.info("Now scraping: %s", name)
+            try:
+                integration = import_module(f"configs.{name}")
+                portal_url = integration.config.base_url
+                results = scrape_integration(integration, resources)
+                for result in results:
+                    result.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    store_scrape_result(scraped_results, locations_by_url, result)
+                    logger.info(scraped_results[result.url])
 
-        status = ScrapeStatus.OPERATIONAL
-        portal_url = ""
-        error = None
-        start_time = perf_counter()
+            except NoJobsFoundError:
+                logger.warning("No jobs found while scraping %s", name)
+                status = ScrapeStatus.QUESTIONABLE
 
-        try:
-            integration = import_module(f"configs.{name}")
-            portal_url = integration.config.base_url
-            results = scrape_integration(integration.config, integration.strategy, page)
-            for result in results:
-                result.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                store_scrape_result(scraped_results, locations_by_url, result)
-                logger.info(scraped_results[result.url])
+            except Exception:
+                logger.error("Error scraping %s", name, exc_info=True)
+                status = ScrapeStatus.DOWN
+                error = traceback.format_exc()
 
-        except NoJobsFoundError:
-            logger.warning("No jobs found while scraping %s", name)
-            status = ScrapeStatus.QUESTIONABLE
-
-        except Exception:
-            logger.error("Error scraping %s", name, exc_info=True)
-            status = ScrapeStatus.DOWN
-            error = traceback.format_exc()
-
-        status_results.append(
-            StatusResult(
-                company_name=name,
-                portal_url=portal_url,
-                status=status,
-                last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                scrape_time=round(perf_counter() - start_time, 2),
-                request_size=round(get_transferred_bytes() / (1024 * 1024), 2),
-                error=error,
+            status_results.append(
+                StatusResult(
+                    company_name=name,
+                    portal_url=portal_url,
+                    status=status,
+                    last_updated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    scrape_time=round(perf_counter() - start_time, 2),
+                    request_size=round(
+                        resources.get_transferred_bytes() / (1024 * 1024), 2
+                    ),
+                    error=error,
+                )
             )
-        )
 
-        context.close()
-        logger.info("Finished scraping: %s", name)
+            logger.info("Finished scraping: %s", name)
 
-        if i < len(scraper_names) - 1:
-            sleep(uniform(2, 10))
+            if i < len(scraper_names) - 1:
+                sleep(uniform(2, 10))
+    finally:
+        resources.close()
 
-    browser.close()
     return scraped_results, status_results
 
 
@@ -203,7 +177,7 @@ def update_scraper_status(
 
         if result.status != ScrapeStatus.QUESTIONABLE:
             """
-            If new result is OPERATIONAL or DOWN, we don't need to do anything further
+            If new result is OPERATIONAL or DOWN, we don't need to do anything further.
             """
             if (
                 result.status == ScrapeStatus.DOWN
@@ -218,8 +192,8 @@ def update_scraper_status(
             ScrapeStatus.QUESTIONABLE.value,
         ):
             """
-            Scraper is QUESTIONABLE and it was previously DOWN (pHash differed too much) or QUESTIONABLE
-            Propagate the previous status forwards
+            Scraper is QUESTIONABLE and it was previously DOWN (pHash differed too much) or QUESTIONABLE.
+            Propagate the previous status forwards.
             """
             result.status = ScrapeStatus(previous_status)
 
@@ -228,8 +202,8 @@ def update_scraper_status(
             and screenshot_path.exists()
         ):
             """
-            Scraper is QUESTIONABLE and it was previously CONFIDENT (user looked at the portal and was confident it still worked)
-            Calculate the pHash and compare it with the old one
+            Scraper is QUESTIONABLE and it was previously CONFIDENT (user looked at the portal and was confident it still worked).
+            Calculate the pHash and compare it with the old one.
             """
             logger.info("Calculating pHash to check portal changes")
             new_hash = calculate_pHash(str(screenshot_path))
@@ -247,8 +221,8 @@ def update_scraper_status(
 
         elif previous_status == ScrapeStatus.CONFIDENT.value:
             """
-            Scraper is QUESTIONABLE and previously CONFIDENT but we don't have a screenshot of it (not set up yet)
-            Set as QUESTIONABLE
+            Scraper is QUESTIONABLE and previously CONFIDENT but we don't have a screenshot of it (not set up yet).
+            Set as QUESTIONABLE.
             """
             result.status = ScrapeStatus.QUESTIONABLE
             result.pHash = previous_pHash
@@ -256,7 +230,7 @@ def update_scraper_status(
             
         else:
             """
-            There was no previous status. This scraper is new
+            There was no previous status. This scraper is new.
             """
             result.error = "Warning: scraper is now finding 0 jobs. Please verify the portal and mark it Confident."
 
@@ -284,13 +258,11 @@ def update_scraper_results(
     scraped_results: Dict[str, ScrapeResult],
 ) -> int:
     """
-    Write the results of the scraping run to the spreadsheet
+    Write the results of the scraping run to the spreadsheet.
     Ensures that the data is consistent and returns the number of listings expired.
     """
     logger.info("Syncing scrape results to spreadsheet")
 
-    # Temporary compatibility migration; remove with the SheetManager method.
-    sheet_manager.ensure_job_location_column(INTERNSHIP_SHEET)
     data = sheet_manager.read_sheet(INTERNSHIP_RANGE)
 
     # Reconcile stored data with scraped data
@@ -398,7 +370,7 @@ def send_discord_notifications(
 
 def scrape_internships(company_queue: List[str], debug=False):
     """
-    Scrape the internships, update the spreadsheet store and send the updates to Discord
+    Scrape the internships, update the spreadsheet store and send the updates to Discord.
     """
     run_start_time = perf_counter()
     logger.info("Starting scraping process")

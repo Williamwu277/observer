@@ -1,7 +1,7 @@
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scrapers"))
@@ -14,65 +14,16 @@ from scrape import (
     store_scrape_result,
     update_scraper_results,
 )
-from sheet_manager import SheetManager
-
-
 class FakeSheetManager:
     def __init__(self, rows):
         self.rows = rows
-        self.migrations = []
         self.updates = []
-
-    def ensure_job_location_column(self, sheet_name):
-        self.migrations.append(sheet_name)
 
     def read_sheet(self, _range_name):
         return self.rows
 
     def update_spreadsheet(self, rows, range_name):
         self.updates.append((rows, range_name))
-
-
-class SheetMigrationTests(unittest.TestCase):
-    def setUp(self):
-        self.manager = SheetManager()
-        self.manager.sheet = MagicMock()
-
-    def test_old_layout_migrates_once_and_new_layout_is_idempotent(self):
-        self.manager.read_sheet = MagicMock(
-            side_effect=[
-                [[" Date Scraped ", "Company", "Title", "URL", "STATUS"]],
-                [["Date Scraped", "Company", "Title", "Url", "Location", "Status"]],
-            ]
-        )
-        self.manager.sheet.get.return_value.execute.return_value = {
-            "sheets": [{"properties": {"sheetId": 42, "title": "2026"}}]
-        }
-
-        self.assertTrue(self.manager.ensure_job_location_column("2026"))
-        self.assertFalse(self.manager.ensure_job_location_column("2026"))
-
-        self.manager.sheet.batchUpdate.assert_called_once()
-        request = self.manager.sheet.batchUpdate.call_args.kwargs["body"]["requests"]
-        self.assertEqual(request[0]["insertDimension"]["range"]["startIndex"], 4)
-        self.assertEqual(request[0]["insertDimension"]["range"]["endIndex"], 5)
-        self.assertEqual(
-            request[1]["updateCells"]["rows"][0]["values"][0][
-                "userEnteredValue"
-            ]["stringValue"],
-            "Location",
-        )
-
-    def test_unexpected_layout_fails_before_writing(self):
-        self.manager.read_sheet = MagicMock(
-            return_value=[["Company", "Title", "Url"]]
-        )
-
-        with self.assertRaisesRegex(ValueError, "Unexpected header layout"):
-            self.manager.ensure_job_location_column("2026")
-
-        self.manager.sheet.get.assert_not_called()
-        self.manager.sheet.batchUpdate.assert_not_called()
 
 
 class JobOutputTests(unittest.TestCase):
@@ -145,7 +96,6 @@ class JobOutputTests(unittest.TestCase):
         expired = update_scraper_results(manager, ["acme"], results)
 
         self.assertEqual(expired, 0)
-        self.assertEqual(manager.migrations, ["2026"])
         self.assertEqual(list(results), ["new"])
         updated_rows, update_range = manager.updates[0]
         self.assertEqual(update_range, "2026!A2:F")

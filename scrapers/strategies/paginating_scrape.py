@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import List
 from random import uniform
 
-from models import ScrapeConfig, ScrapeResult, IncompleteScrapeError
+from models import BrowserScrapeConfig, ScrapeResult, IncompleteScrapeError
 
 
 logger = logging.getLogger(__name__)
@@ -13,10 +13,10 @@ MAX_PAGES = 10
 
 
 @dataclass
-class PaginatingScrapeConfig(ScrapeConfig):
+class PaginatingScrapeConfig(BrowserScrapeConfig):
     """
-    Config class to customize simple_scrape for alternate portals
-    next_page_selector must point to a button that is clickable
+    Config class to customize simple_scrape for alternate portals.
+    next_page_selector must point to a button that is clickable.
     """
 
     next_page_selector: str
@@ -26,7 +26,7 @@ def paginating_scrape(
     config: PaginatingScrapeConfig, page: Page
 ) -> dict[str, List[ScrapeResult]]:
     """
-    Scraping function for portals where there may be multiple pages of jobs
+    Scraping function for portals where there may be multiple pages of jobs.
     """
 
     jobs_list = []

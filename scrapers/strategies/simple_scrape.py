@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Optional, List
 from random import uniform
 
-from models import ScrapeConfig, ScrapeResult, IncompleteScrapeError
+from models import BrowserScrapeConfig, ScrapeResult, IncompleteScrapeError
 
 
 logger = logging.getLogger(__name__)
@@ -13,9 +13,9 @@ MAX_MORE_JOBS_CLICKS = 10
 
 
 @dataclass
-class SimpleScrapeConfig(ScrapeConfig):
+class SimpleScrapeConfig(BrowserScrapeConfig):
     """
-    Config class to customize simple_scrape for alternate portals
+    Config class to customize simple_scrape for alternate portals.
     """
 
     # If the job list is behind a button
@@ -29,7 +29,7 @@ def simple_scrape(
 ) -> dict[str, List[ScrapeResult]]:
     """
     Scraping function for portals you can access the job list through
-    up to one click
+    up to one click.
     """
 
     # Click on proper section if necessary e.g. Ramp

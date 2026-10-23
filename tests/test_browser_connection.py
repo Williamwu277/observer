@@ -8,10 +8,27 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scrapers"))
 
-from scrape import start_browser
+from resource_manager import ResourceManager, start_browser
 
 
 class BrowserConnectionTests(unittest.TestCase):
+    @patch.dict(os.environ, {}, clear=True)
+    def test_resource_manager_starts_browser_only_when_requested(self):
+        playwright = Mock()
+        manager = ResourceManager(playwright)
+
+        playwright.chromium.launch.assert_not_called()
+        self.assertIs(manager.get_browser(), manager.get_browser())
+        playwright.chromium.launch.assert_called_once()
+
+    @patch("resource_manager.requests.Session")
+    def test_resource_manager_lazily_reuses_http_client(self, session_class):
+        manager = ResourceManager(Mock())
+
+        session_class.assert_not_called()
+        self.assertIs(manager.get_http_client(), manager.get_http_client())
+        session_class.assert_called_once_with()
+
     @patch.dict(os.environ, {}, clear=True)
     def test_local_launch_preserves_full_chromium_workaround(self):
         playwright = Mock()

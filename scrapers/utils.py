@@ -16,7 +16,7 @@ from models import ScrapeResult
 
 def get_company_directory() -> List[str]:
     """
-    Grab list of configs from the config directory
+    Grab list of configs from the config directory.
     """
     company_names = []
     for path in Path("configs").iterdir():
@@ -27,7 +27,7 @@ def get_company_directory() -> List[str]:
 
 def filter_intern_title(title: str) -> bool:
     """
-    Filter job for intern title
+    Filter job for intern title.
     """
     title = title.lower()
     if title.count("intern") <= title.count("interna"):
@@ -37,7 +37,7 @@ def filter_intern_title(title: str) -> bool:
 
 def filter_title_role(title: str) -> bool:
     """
-    Filter for roles that are relevant
+    Filter for roles that are relevant.
     """
     title = title.lower()
     for word in TITLE_BLACKLIST:
@@ -51,7 +51,7 @@ def filter_title_role(title: str) -> bool:
 
 def filter_location(location_list: List[str], location: str) -> bool:
     """
-    Filter job locations
+    Filter job locations.
     """
     location = location.lower()
     for word in location_list:
@@ -62,21 +62,21 @@ def filter_location(location_list: List[str], location: str) -> bool:
 
 def filter_out_location(location_string: str) -> bool:
     """
-    Returns whether or not the location string has a blacklisted location
+    Returns whether or not the location string has a blacklisted location.
     """
     return filter_location(LOCATION_BLACKLIST, location_string)
 
 
 def filter_for_location(location_string: str) -> bool:
     """
-    Returns whether or not the location string has a whitelisted location
+    Returns whether or not the location string has a whitelisted location.
     """
     return filter_location(LOCATION_WHITELIST, location_string)
 
 
 def filter_job(job: ScrapeResult) -> bool:
     """
-    Filters a job based on the title and location. Returns True if the job passes the filters
+    Filters a job based on the title and location. Returns True if the job passes the filters.
     """
     if job.location is not None:
         if not filter_for_location(job.location):
@@ -114,7 +114,7 @@ def attach_network_monitor(cdp_session: CDPSession) -> Callable[[], int]:
 
 def trim_logs() -> None:
     """
-    Trim log files to last 7 days
+    Trim log files to last 7 days.
     """
     for path in Path("logs").iterdir():
         log_date = datetime.strptime(path.stem, "scrape_%Y-%m-%d_%H-%M-%S").date()
@@ -124,7 +124,7 @@ def trim_logs() -> None:
 
 def calculate_pHash(image_path: str) -> imagehash.ImageHash:
     """
-    Calculate the pHash of an image
+    Calculate the pHash of an image.
     """
     with Image.open(image_path) as image:
         return imagehash.phash(image)

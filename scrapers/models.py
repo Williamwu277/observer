@@ -4,7 +4,9 @@ from typing import Callable, Optional
 
 
 class IncompleteScrapeError(Exception):
-    """Raised when a scraper cannot establish that it read the complete job list."""
+    """
+    Raised when a scraper cannot establish that it read the complete job list.
+    """
 
 
 class NoJobsFoundError(Exception):
@@ -15,22 +17,31 @@ class NoJobsFoundError(Exception):
 
 
 @dataclass
-class ScrapeConfig:
+class BaseScrapeConfig:
     """
-    Config class to store scraping data for each integration
+    Configuration shared by every scraping integration.
     """
 
     company_name: str
+    # Public careers page used for navigation or status reporting.
     base_url: str
+    # Optionally convert a source URL into the canonical URL stored by Observer.
+    link_augmentation: Optional[Callable[[str], str]] = field(
+        default=None, kw_only=True
+    )
+
+
+@dataclass
+class BrowserScrapeConfig(BaseScrapeConfig):
+    """
+    Configuration shared by integrations that scrape a browser page.
+    """
+
     jobs_selector: str
     url_selector: str
     title_selector: str
     # Used for filtering. Only necessary if location can be global
     location_selector: Optional[str] = field(default=None, kw_only=True)
-    # If the scraped url is relative, use this function to make it complete
-    link_augmentation: Optional[Callable[[str], str]] = field(
-        default=None, kw_only=True
-    )
     cookies_accept_text: Optional[str] = field(default=None, kw_only=True)
     # Experimental: element to screenshot when the portal returns zero jobs,
     # enabling first-class detection of portal changes via perceptual hashing
@@ -38,9 +49,18 @@ class ScrapeConfig:
 
 
 @dataclass
+class GreenhouseScrapeConfig(BaseScrapeConfig):
+    """
+    Configuration for a Greenhouse Job Board API integration.
+    """
+
+    api_url: str
+
+
+@dataclass
 class ScrapeResult:
     """
-    Data class to store scraping results
+    Data class to store scraping results.
     """
 
     company_name: str
@@ -68,7 +88,7 @@ class ScrapeStatus(Enum):
 @dataclass
 class StatusResult:
     """
-    Data class to store the health of a scraping integration for a single run
+    Data class to store the health of a scraping integration for a single run.
     """
 
     company_name: str

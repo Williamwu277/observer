@@ -70,7 +70,9 @@ def build_run_summary(
     notification_successes: int,
     notifications_skipped: bool,
 ) -> str:
-    """Build a human-readable summary of a completed scraper run."""
+    """
+    Build a human-readable summary of a completed scraper run.
+    """
     passed = sorted(
         result.company_name
         for result in status_results

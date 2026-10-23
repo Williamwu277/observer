@@ -18,10 +18,11 @@ You can see the spreadsheet of internships as well as the entire directory [here
 
 1. Grab a service account from GCP (with google sheets enabled) and edit the `SERVICE_ACCOUNT_FILE` variable in `const.py` to point to the credentials file
 2. Create a spreadsheet, share it with your service account, and then create an `.env` file with `SPREADSHEET_ID`
-3. Edit the spreadsheet with a jobs table using these columns: `Date Scraped | Company | Title | Url | Location | Status`. Existing five-column sheets are migrated automatically on the next run.
+3. Edit the spreadsheet with a jobs table using these columns: `Date Scraped | Company | Title | Url | Location | Status`.
 4. Add the Discord webhooks `ANNOUNCEMENTS_WEBHOOK_URL` and `ERRORS_WEBHOOK_URL` to your `.env` file for notifications. You can also add `SUMMARY_WEBHOOK_URL` to post the end-of-run summary to a separate channel.
-5. Create a virtual python environment and pip install the `requirements.txt`
-6. Run `playwright install` in the virtual environment
+5. To use an external Playwright Server, set `PLAYWRIGHT_SERVER_URL` in `.env`. Leave it unset to run Chromium locally.
+6. Create a virtual python environment and pip install the `requirements.txt`
+7. Run `playwright install` in the virtual environment
 
 ## Operation
 
@@ -67,7 +68,7 @@ docker run --rm --init --network observer \
   ghcr.io/williamwu277/observer:remote
 ```
 
-The remote image requires `PLAYWRIGHT_SERVER_URL`; it contains no browser binaries. Both modes use full Chromium in its new headless mode, preserving the Roblox compatibility workaround. The remote server must stay on a private network and must use the same Playwright major and minor version as the client. The client is pinned to `1.61.0` in `requirements.txt`; update that pin and the server image/package together.
+The remote image requires `PLAYWRIGHT_SERVER_URL`; it contains no browser binaries. The remote server must stay on a private network and must use the same Playwright major and minor version as the client. The client is pinned to `1.61.0` in `requirements.txt`; update that pin and the server image/package together.
 
 For local builds:
 
@@ -88,16 +89,27 @@ An untargeted `docker build` also builds `local`, the final stage. To select scr
 
 #### 1. The Scraping Framework
 
-The scraping framework is a state machine which cycles through the states:
+Each module in `configs` exports a `config` and `strategy`. `scrape_integration`
+selects a pipeline from the config type. Browser integrations use:
 
-- `NAVIGATING_TO_PORTAL` covers going to the URL of the company careers site and optionally accepting any cookie pop-ups
-- `FINDING_JOBS` is the solely customizable state, where users can define a scraping strategy to find the jobs in that portal
-- `POST_SCRAPE_ACTION` runs after all the jobs are found. Currently, it is used to optionally take a screenshot of the page for determining whether the portal has been updated in the case that no jobs were found
-- `FILTERING_JOBS` takes the scraped jobs and ensures that the location and job title are correct (internships for software engineering roles at a U.S. or Canada location).
+- `NAVIGATING_TO_PORTAL` opens the careers page and optionally accepts its cookie prompt.
+- `FINDING_JOBS` runs the integration's browser strategy.
+- `POST_SCRAPE_ACTION` handles empty portals and optional screenshot evidence.
+- `FILTERING_JOBS` applies the shared title and location filters.
+
+The only API integration currently supported is Greenhouse. It requests the
+configured endpoint and parses its JSON response:
+
+- `REQUESTING_API` makes the request and decodes the response.
+- `FINDING_JOBS` and `FILTERING_JOBS` convert and filter jobs as described above.
 
 #### 2. Scraping Careers Sites
 
-Continuing on the scraping strategies for the `FINDING_JOBS` state, currently there are two prewritten ones: `simple_scrape` and `paginating_scrape`. Simple scrape covers a wide variety of cases including optionally clicking something, optionally repeatedly clicking a button (e.g. more jobs), before extracting job data from a table. Paginating scrape is used in the case where there are multiple pages of jobs. For both of these strategies there is a `ScrapeConfig`, which stores the portal-specific data necessary for that portal (e.g. URL, selectors etc). The `FINDING_JOBS` state takes in both a strategy and a config, which you must provide as a file in the `configs` directory in order to successfully scrape a portal. For example:
+##### Browser integrations
+
+Use `simple_scrape` for a single job list, including lists revealed by a section
+or load-more button. Use `paginating_scrape` for portals with multiple pages.
+For example:
 
 ```python
 # ramp.py
@@ -113,24 +125,46 @@ config = SimpleScrapeConfig(
 )
 
 strategy = simple_scrape
-
 ```
 
-This `Ramp` integration uses `simple_scrape` (as well as the corresponding `SimpleScrapeConfig`). It defines the URL to the portal as well as the selectors needed to find the job posting information. As well, it makes use of the optional click at the beginning of a simple scrape (`section_click_name`).
-
-For careers pages hosted on `jobs.ashbyhq.com`, use `AshbyScrapeConfig` with the `simple_scrape` strategy instead of defining the shared Ashby selectors again.
-
-In the event that neither simple scrape nor paginating scrape can fulfill your use-case, you can define your own scraping strategy (and config) and set the `strategy` and `config` variables to it in your file. You must adhere to the following function signature below:
+A custom browser strategy receives its config and Playwright page and returns
+the collected jobs:
 
 ```python
-def <insert_function_name>(config: <insert_config_type>, page: Page) -> dict[str, List[ScrapeResult]]:
-
-# Returns {"jobs": List[ScrapeResult]}
+def custom_scrape(
+    config: BrowserScrapeConfig,
+    page: Page,
+) -> dict[str, list[ScrapeResult]]:
+    return {"jobs": jobs}
 ```
 
-Every company included in a run is reconciled with the spreadsheet, regardless of scraper status. Jobs missing from that run's results expire, including when the scraper fails or finds no jobs.
+##### Ashby
 
-Strategies must raise `IncompleteScrapeError` rather than return partial results when they cannot finish loading jobs. Shared strategies reject pagination limits with more jobs remaining and repeated pages; Greenhouse feeds must match their reported total and contain unique job IDs. Custom strategies should validate their site's completion signal too. Feed strategies may return `{"jobs": [], "complete": True}` only after verifying that the source is genuinely empty; an empty list without that verification still requires portal review.
+For `jobs.ashbyhq.com`, use `AshbyScrapeConfig` with `simple_scrape` to reuse
+the shared selectors.
+
+##### Greenhouse API scraping
+
+Greenhouse integrations provide the public careers URL and API endpoint, then
+use the shared strategy:
+
+```python
+from models import GreenhouseScrapeConfig
+from strategies.greenhouse import greenhouse_scrape
+
+config = GreenhouseScrapeConfig(
+    company_name="discord",
+    base_url="https://discord.com/careers",
+    api_url="https://api.greenhouse.io/v1/boards/discord/jobs",
+)
+
+strategy = greenhouse_scrape
+```
+
+`base_url` is the public careers page used for status reporting. `api_url` is
+the Greenhouse endpoint. The optional `link_augmentation` field on
+`BaseScrapeConfig` converts source URLs into the canonical URLs stored by
+Observer.
 
 #### 3. Scraper Statuses
 
@@ -141,13 +175,22 @@ After a scraping run, you may see the status page on the spreadsheet. A scraping
 - `Questionable` means that the scraper is not finding any job listings on the portal. Someone should take a look to make sure that is the correct behaviour
 - `Down` means that something has changed or the scraper is erroring out
 
-Usually, it is optimal for all the integrations to be `Operational` or `Confident`. When a scraper run yields no results, the status will be set to `Questionable`.
+`IncompleteScrapeError` means a scraper could not confirm that it collected the
+complete job list.
+
+Every queued company is reconciled with the spreadsheet after the run. Listings
+missing from that company's results expire, including when its scraper fails or
+finds no jobs.
+
+Usually, integrations should be `Operational` or `Confident`. A browser scraper
+that finds no source jobs becomes `Questionable`; a validated empty API feed or
+a successful scrape whose jobs are all filtered out remains `Operational`.
 
 #### 4. Automated Change Detection
 
-This is a new experimental feature for integrations with `empty_portal_selector` enabled. When no job listings are found, it scrolls to that element and takes a screenshot of the page. If the screenshots from run to run are similar (using pHashing to determine similarity), there is a pretty high chance that the portal is still the same. 
+This is an experimental feature for browser integrations with `empty_portal_selector` enabled. When no source jobs are found, it scrolls to that element and takes a screenshot of the page. If the screenshots from run to run are similar (using pHashing to determine similarity), there is a pretty high chance that the portal is still the same.
 
-On a day-to-day basis, when a run yields no results, the integration is set to `Questionable`. Then, you can look at the portal to determine whether or not anything is amiss. If everything is fine, you should set the status of the scraper to `Confident`. This starts the automated pHash tracking process. If at any time the pHash comparisons yield large differences, the scraper status will be set to `Down` for another human look.
+When an eligible browser integration finds no source jobs, it is set to `Questionable`. You can inspect the portal and mark the scraper `Confident` if it is still correct. This starts the automated pHash tracking process. If a later screenshot differs beyond the threshold, the scraper is set to `Down` for another review.
 
 Why this strategy in particular? The main idea is that we want to be as sure as possible that we aren't missing anything without having to check daily. We've accepted the odds for false positive notifications of the portal breaking; however, the worst case scenario that we prevent (as much as we can) is when it says a scraper is operational but in reality isn't. Additionally, consider this scenario (which happened). The Uber careers page changed formats. However, the link in the config still yields a valid page. The page displays no jobs since the queries in the link point to invalid sources. I believe this screenshot strategy will notice the portal change, while other strategies are less likely to.
 
@@ -161,7 +204,6 @@ The project favors public APIs and structured job-board endpoints when they are 
 
 ## Todo
 
-- [ ] Remove the legacy five-column migration and its migration-specific tests after all deployed sheets are confirmed migrated; retain validation of the six-column layout
 - [ ] Extend company directory 
 - [ ] Concurrently scrape
 - [ ] Refactor code to be cleaner

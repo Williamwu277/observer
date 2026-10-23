@@ -99,7 +99,9 @@ def send_discord_update(
 
 
 def _split_discord_description(description: str) -> List[str]:
-    """Split text on line boundaries to fit Discord embed descriptions."""
+    """
+    Split text on line boundaries to fit Discord embed descriptions.
+    """
     chunks = []
     current_lines = []
     current_length = 0
@@ -132,7 +134,9 @@ def _split_discord_description(description: str) -> List[str]:
 
 
 def send_discord_summary(summary: str) -> Optional[bool]:
-    """Send a run summary when the optional summary webhook is configured."""
+    """
+    Send a run summary when the optional summary webhook is configured.
+    """
     if not webhook_urls[WebhookType.SUMMARY]:
         return None
 
@@ -155,13 +159,13 @@ def send_discord_batch_update(
     webhook_type: WebhookType, internship_list: List[Dict[str, str]]
 ) -> bool:
     """
-    Send all the internship updates to the Discord webhook
+    Send all the internship updates to the Discord webhook.
 
     Args:
         messages: List of Discord embed dicts with title, url and description fields.
 
     Returns:
-        True or false depending on whether the messages were sent successfully
+        True or false depending on whether the messages were sent successfully.
     """
     send_queue = []
     for i, message in enumerate(internship_list):
