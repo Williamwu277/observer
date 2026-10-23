@@ -205,7 +205,7 @@ def update_scraper_status(
             Scraper is QUESTIONABLE and it was previously CONFIDENT (user looked at the portal and was confident it still worked).
             Calculate the pHash and compare it with the old one.
             """
-            logger.info("Calculating pHash to check portal changes")
+            logger.info("Calculating pHash to check portal changes for %s", result.company_name)
             new_hash = calculate_pHash(str(screenshot_path))
             if previous_pHash == "0":
                 # A human just marked this Confident: capture the baseline.

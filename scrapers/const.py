@@ -76,4 +76,4 @@ STATUS_DATA_MAP = {
 
 # ------------------------------------------- Experimental Constants -------------------------------------------
 
-P_HASH_THRESHOLD = 4
+P_HASH_THRESHOLD = 6
