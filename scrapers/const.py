@@ -29,9 +29,22 @@ TITLE_WHITELIST = [
     "machine learning",
     "ai",
     "artificial intelligence",
+    "mts",
+    "member of technical staff"
 ]
 
-TITLE_BLACKLIST = ["phd"]
+TITLE_BLACKLIST = [
+    "phd",
+    "chemistry",
+    "thermal",
+    "civil",
+    "electrical",
+    "materials",
+    "supply chain",
+    "supplier",
+    "mechanical",
+    "hardware"
+]
 
 
 # --------------------------------------- Scraping Constants -----------------------------------------

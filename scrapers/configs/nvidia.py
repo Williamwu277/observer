@@ -6,8 +6,8 @@ config = PaginatingScrapeConfig(
     base_url="https://jobs.nvidia.com/careers?start=0&location=united+states&sort_by=timestamp&filter_job_type=intern+%28fixed+term%29",
     jobs_selector='div[data-test-id="job-listing"]',
     url_selector="a",
-    title_selector="a",
-    location_selector="a",
+    title_selector="a > div > div:nth-child(1)",
+    location_selector="a > div > div:nth-child(2) > div:nth-child(2)",
     next_page_selector="button[aria-label='Next jobs']",
     link_augmentation=lambda url: "https://jobs.nvidia.com" + url,
 )
