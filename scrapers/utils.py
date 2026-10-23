@@ -32,7 +32,7 @@ def filter_intern_title(title: str) -> bool:
     title = title.lower()
     return (
         title.count("intern") > title.count("interna")
-        or title.count("coop") > 0
+        or title.count("coop") > title.count("cooperative")
         or title.count("co-op") > 0
     )
 
