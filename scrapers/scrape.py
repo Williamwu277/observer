@@ -153,20 +153,16 @@ def run_scrapers(
     return scraped_results, status_results
 
 
-def update_scraper_status(
-    sheet_manager: SheetManager, status_results: List[StatusResult]
+def resolve_scraper_status(
+    status_results: List[StatusResult], existing_data: List[List[str]]
 ) -> None:
     """
-    Write the health of each scraped integration to the Status sheet. Merges with
-    the existing rows so that partial runs only update the integrations they scraped.
+    Resolve final run statuses using prior health and empty-portal screenshots.
     """
-    if len(status_results) == 0:
+    if not status_results:
         return
 
-    logger.info("Syncing scrape status results to spreadsheet")
-
     name_column = STATUS_DATA_MAP["Name"]
-    existing_data = sheet_manager.read_sheet(STATUS_RANGE)
     status_by_name = {row[name_column]: row for row in existing_data if row}
 
     for result in status_results:
@@ -234,6 +230,24 @@ def update_scraper_status(
             """
             result.error = "Warning: scraper is now finding 0 jobs. Please verify the portal and mark it Confident."
 
+    shutil.rmtree("tmp", ignore_errors=True)
+
+
+def update_scraper_status(
+    sheet_manager: SheetManager,
+    status_results: List[StatusResult],
+    existing_data: List[List[str]],
+) -> None:
+    """
+    Persist resolved statuses, preserving integrations outside this run.
+    """
+    if not status_results:
+        return
+
+    logger.info("Syncing scrape status results to spreadsheet")
+    name_column = STATUS_DATA_MAP["Name"]
+    status_by_name = {row[name_column]: row for row in existing_data if row}
+    for result in status_results:
         status_by_name[result.company_name] = [
             result.company_name,
             result.portal_url,
@@ -244,8 +258,6 @@ def update_scraper_status(
             result.pHash,
         ]
 
-    shutil.rmtree("tmp", ignore_errors=True)
-
     status_rows = [status_by_name[name] for name in sorted(status_by_name)]
 
     logger.info("Updating status for %s integration(s)", len(status_results))
@@ -254,13 +266,26 @@ def update_scraper_status(
 
 def update_scraper_results(
     sheet_manager: SheetManager,
-    company_queue: List[str],
+    status_results: List[StatusResult],
     scraped_results: Dict[str, ScrapeResult],
 ) -> int:
     """
-    Write the results of the scraping run to the spreadsheet.
-    Ensures that the data is consistent and returns the number of listings expired.
+    Reconcile jobs only for runs resolved as Operational or Confident.
+    Retain only eligible new jobs in scraped_results for downstream announcements.
+    Return the number of listings expired.
     """
+    eligible_companies = {
+        result.company_name
+        for result in status_results
+        if result.status in (ScrapeStatus.OPERATIONAL, ScrapeStatus.CONFIDENT)
+    }
+    for url, result in list(scraped_results.items()):
+        if result.company_name not in eligible_companies:
+            del scraped_results[url]
+
+    if not eligible_companies:
+        return 0
+
     logger.info("Syncing scrape results to spreadsheet")
 
     data = sheet_manager.read_sheet(INTERNSHIP_RANGE)
@@ -273,7 +298,7 @@ def update_scraper_results(
         url = row[DATA_MAP["Url"]]
         company_name = row[DATA_MAP["Company"]]
 
-        if company_name not in company_queue or status == "Expired":
+        if company_name not in eligible_companies or status == "Expired":
             continue
 
         elif url not in scraped_results:
@@ -382,13 +407,14 @@ def scrape_internships(company_queue: List[str], debug=False):
     sheet_manager = SheetManager()
     sheet_manager.start()
 
-    # Update scraped results on the spreadsheet as well as if the entries are still valid
-    expired_listings = update_scraper_results(
-        sheet_manager, company_queue, scraped_results
-    )
+    # Resolve health before deciding which integrations may change jobs.
+    existing_status_data = sheet_manager.read_sheet(STATUS_RANGE)
+    resolve_scraper_status(status_results, existing_status_data)
+    update_scraper_status(sheet_manager, status_results, existing_status_data)
 
-    # Aggregate and update scraper health regardless of whether new jobs were found
-    update_scraper_status(sheet_manager, status_results)
+    expired_listings = update_scraper_results(
+        sheet_manager, status_results, scraped_results
+    )
 
     notification_attempts = 0
     notification_successes = 0
