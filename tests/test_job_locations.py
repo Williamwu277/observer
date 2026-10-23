@@ -207,6 +207,90 @@ class JobOutputTests(unittest.TestCase):
         self.assertIn("acme — Software Intern — https://example.com/job", summary)
         self.assertNotIn("SECRET PLACE", summary)
 
+    @patch("scrape.send_discord_batch_update", return_value=True)
+    def test_returning_job_reuses_row_and_only_genuinely_new_jobs_are_announced(self, send_batch):
+        rows = [["original date", "acme", "Returning Intern", "returning", "Toronto", "Expired"]]
+        manager = FakeSheetManager(rows)
+        results = {
+            "returning": ScrapeResult("acme", "returning", "Returning Intern", " Seattle ", "now"),
+            "new": ScrapeResult("acme", "new", "New Intern", None, "now"),
+        }
+
+        self.assertEqual(update_scraper_results(manager, ["acme"], results), 0)
+        send_discord_notifications([], results)
+
+        self.assertEqual(rows[0], ["original date", "acme", "Returning Intern", "returning", "Seattle", "Active"])
+        self.assertEqual(len(manager.updates[0][0]), 2)
+        self.assertEqual(list(results), ["new"])
+        self.assertEqual([message["url"] for message in send_batch.call_args.args[1]], ["new"])
+
+    @patch("scrape.send_discord_batch_update")
+    def test_reactivation_only_is_persisted_without_announcements(self, send_batch):
+        rows = [["original date", "acme", "Intern", "returning", "Toronto", "Expired"]]
+        manager = FakeSheetManager(rows)
+        results = {"returning": ScrapeResult("acme", "returning", "Intern", None)}
+
+        update_scraper_results(manager, ["acme"], results)
+
+        self.assertEqual(rows[0][4:], ["Toronto", "Active"])
+        self.assertEqual(len(manager.updates), 1)
+        self.assertEqual(send_discord_notifications([], results), (0, 0))
+        send_batch.assert_not_called()
+
+    def test_historical_duplicates_do_not_reactivate_when_an_active_row_exists(self):
+        rows = [
+            ["date1", "acme", "Intern", "same", "Toronto", "Expired"],
+            ["date2", "acme", "Intern", "same", "Toronto", "Active"],
+            ["date3", "acme", "Intern", "same", "Toronto", "Expired"],
+        ]
+        manager = FakeSheetManager(rows)
+        results = {"same": ScrapeResult("acme", "same", "Intern", "Seattle")}
+
+        self.assertEqual(update_scraper_results(manager, ["acme"], results), 0)
+
+        self.assertEqual([row[5] for row in rows], ["Expired", "Active", "Expired"])
+        self.assertEqual(rows[1][4], "Seattle")
+        self.assertEqual(results, {})
+
+    def test_only_one_expired_copy_is_reactivated_and_later_runs_are_quiet(self):
+        rows = [
+            ["date1", "acme", "Intern", "same", "Toronto", "Expired"],
+            ["date2", "acme", "Intern", "same", "Toronto", "Expired"],
+        ]
+        manager = FakeSheetManager(rows)
+        for _ in range(2):
+            results = {"same": ScrapeResult("acme", "same", "Intern", None)}
+            self.assertEqual(update_scraper_results(manager, ["acme"], results), 0)
+            self.assertEqual(results, {})
+
+        self.assertEqual([row[5] for row in rows], ["Active", "Expired"])
+        self.assertEqual(len(manager.updates), 1)
+
+    def test_unprocessed_expired_job_stays_expired(self):
+        rows = [["date", "other", "Intern", "same", "Toronto", "Expired"]]
+        manager = FakeSheetManager(rows)
+
+        update_scraper_results(manager, ["acme"], {})
+
+        self.assertEqual(rows[0][5], "Expired")
+        self.assertEqual(manager.updates, [])
+
+    @patch("scrape.send_discord_batch_update")
+    def test_missing_then_returning_job_never_creates_another_row_or_ping(self, send_batch):
+        manager = FakeSheetManager([
+            ["date", "acme", "Intern", "same", "Toronto", "Active"]
+        ])
+        self.assertEqual(update_scraper_results(manager, ["acme"], {}), 1)
+        self.assertEqual(manager.rows[0][5], "Expired")
+
+        results = {"same": ScrapeResult("acme", "same", "Intern", "Toronto")}
+        self.assertEqual(update_scraper_results(manager, ["acme"], results), 0)
+
+        self.assertEqual(manager.rows[0][5], "Active")
+        self.assertEqual(len(manager.updates[-1][0]), 1)
+        self.assertEqual(send_discord_notifications([], results), (0, 0))
+        send_batch.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
