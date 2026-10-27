@@ -9,7 +9,7 @@ from models import BrowserScrapeConfig, ScrapeResult, IncompleteScrapeError
 
 
 logger = logging.getLogger(__name__)
-MAX_PAGES = 10
+MAX_PAGES = 20
 
 
 @dataclass
